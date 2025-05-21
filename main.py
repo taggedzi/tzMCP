@@ -23,9 +23,11 @@ class ProxyControlTab(ttk.Frame):
         self.toggle_btn = ttk.Button(self, text="Start Proxy", command=self.toggle_proxy)
         self.toggle_btn.grid(row=0, column=0, pady=10, sticky="ew")
 
-        self.output = ScrolledText(self, bg="black", insertbackground="white")
+        self.output = ScrolledText(self, wrap=tk.WORD)
         self.output.configure(state="disabled")
         self.output.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+
+        self.setup_tags()
 
     def toggle_proxy(self):
         if self.proc is None:
@@ -52,26 +54,29 @@ class ProxyControlTab(ttk.Frame):
             self.proc = None
             self.toggle_btn.config(text="Start Proxy")
             self.status_callback("Proxy Stopped", "red")
-            self.write_output("[!] Proxy stopped.\n", "warning")
+            self.insert_output_line("[!] Proxy stopped.\n")
 
     def read_output(self):
         for line in self.proc.stdout:
-            self.write_output(line)
+            self.insert_output_line(line)
         self.proc = None
         self.toggle_btn.config(text="Start Proxy")
         self.status_callback("Proxy Exited", "yellow")
 
     def write_output(self, text, tag=None):
         self.output.configure(state="normal")
-        self.output.insert(tk.END, text, tag)
+        if tag:
+            self.output.insert(tk.END, text, tag)
+        else:
+            self.output.insert(tk.END, text)
         self.output.see(tk.END)
         self.output.configure(state="disabled")
 
     def setup_tags(self):
-        self.output.tag_config("info", foreground="lime")
-        self.output.tag_config("warning", foreground="yellow")
+        self.output.tag_config("info", foreground="green")
+        self.output.tag_config("warning", foreground="orange")
         self.output.tag_config("error", foreground="red")
-        self.output.tag_config("debug", foreground="cyan")
+        self.output.tag_config("debug", foreground="blue")
 
     def insert_output_line(self, text):
         if "[!]" in text:
@@ -201,8 +206,6 @@ class MainApp(tk.Tk):
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
         self.proxy_tab = ProxyControlTab(self.tabs, self.update_status)
-        self.proxy_tab.setup_tags()
-
         self.config_tab = ConfigEditorTab(self.tabs)
         self.domains_tab = DomainViewerTab(self.tabs)
 
