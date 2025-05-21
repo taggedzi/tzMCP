@@ -6,8 +6,10 @@ import threading
 import os
 import signal
 import yaml
+import re
 
 CONFIG_FILE = "config.yaml"
+DOMAINS_FILE = "domains_seen.txt"
 
 class ProxyControlTab(ttk.Frame):
     def __init__(self, parent, status_callback):
@@ -91,7 +93,7 @@ class ConfigEditorTab(ttk.Frame):
     def save_config(self):
         try:
             content = self.text.get(1.0, tk.END)
-            yaml.safe_load(content)  # Check for syntax validity
+            yaml.safe_load(content)
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 f.write(content)
             messagebox.showinfo("Success", "Config saved successfully.")
@@ -100,6 +102,72 @@ class ConfigEditorTab(ttk.Frame):
 
     def reset_config(self):
         self.load_config()
+
+
+class DomainViewerTab(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.domains = []
+
+        self.listbox = tk.Listbox(self, height=20, width=80)
+        self.listbox.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+
+        self.regex_label = tk.Label(self, text="Suggested Regex:", anchor="w")
+        self.regex_label.pack(fill=tk.X, padx=10)
+
+        self.regex_entry = tk.Entry(self, width=100)
+        self.regex_entry.pack(padx=10, pady=(0, 10), fill=tk.X)
+
+        btn_frame = ttk.Frame(self)
+        btn_frame.pack(pady=5)
+
+        ttk.Button(btn_frame, text="Copy to Clipboard", command=self.copy_to_clipboard).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Refresh", command=self.load_domains).pack(side=tk.LEFT, padx=5)
+
+        self.listbox.bind("<<ListboxSelect>>", self.on_select)
+        self.load_domains()
+
+    def load_domains(self):
+        self.listbox.delete(0, tk.END)
+        self.domains = []
+        try:
+            with open(DOMAINS_FILE, "r", encoding="utf-8") as f:
+                seen = set()
+                for line in f:
+                    domain = line.strip()
+                    if domain and domain not in seen:
+                        seen.add(domain)
+                        self.domains.append(domain)
+                        self.listbox.insert(tk.END, domain)
+        except FileNotFoundError:
+            messagebox.showwarning("No Data", f"{DOMAINS_FILE} not found.")
+
+    def on_select(self, event):
+        selection = event.widget.curselection()
+        if selection:
+            index = selection[0]
+            domain = self.domains[index]
+            regex = self.smart_regex(domain)
+            self.regex_entry.delete(0, tk.END)
+            self.regex_entry.insert(0, regex)
+
+    def smart_regex(self, domain):
+        parts = domain.split('.')
+        if len(parts) >= 3:
+            domain_core = '.'.join(parts[-2:])
+            subdomain = parts[0]
+            if re.match(r'^[a-zA-Z\-]*\d+[a-zA-Z\-]*$', subdomain):
+                sub_regex = re.sub(r'\d+', r'[0-9]+', subdomain)
+                return f"{re.escape(sub_regex)}\\.{re.escape(domain_core)}"
+            else:
+                return f".*\\.{re.escape(domain_core)}"
+        return re.escape(domain)
+
+    def copy_to_clipboard(self):
+        regex = self.regex_entry.get()
+        self.clipboard_clear()
+        self.clipboard_append(regex)
+        messagebox.showinfo("Copied", "Regex copied to clipboard.")
 
 
 class MainApp(tk.Tk):
@@ -115,9 +183,11 @@ class MainApp(tk.Tk):
 
         self.proxy_tab = ProxyControlTab(self.tabs, self.update_status)
         self.config_tab = ConfigEditorTab(self.tabs)
+        self.domains_tab = DomainViewerTab(self.tabs)
 
         self.tabs.add(self.proxy_tab, text="Proxy Control")
         self.tabs.add(self.config_tab, text="Config Editor")
+        self.tabs.add(self.domains_tab, text="Domain Viewer")
 
     def update_status(self, message, color):
         self.status_bar.config(text=f"Status: {message}", bg=color)
