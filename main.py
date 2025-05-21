@@ -10,6 +10,7 @@ import re
 
 CONFIG_FILE = "config.yaml"
 DOMAINS_FILE = "domains_seen.txt"
+MAX_LOG_LINES = 2000  # Maximum number of lines in the console output
 
 class ProxyControlTab(ttk.Frame):
     def __init__(self, parent, status_callback):
@@ -61,7 +62,7 @@ class ProxyControlTab(ttk.Frame):
             self.insert_output_line(line)
         self.proc = None
         self.toggle_btn.config(text="Start Proxy")
-        self.status_callback("Proxy Exited", "yellow")
+        self.status_callback("Proxy Exited", "orange")
 
     def write_output(self, text, tag=None):
         self.output.configure(state="normal")
@@ -69,6 +70,12 @@ class ProxyControlTab(ttk.Frame):
             self.output.insert(tk.END, text, tag)
         else:
             self.output.insert(tk.END, text)
+
+        # Trim lines if over MAX_LOG_LINES
+        lines = int(self.output.index('end-1c').split('.')[0])
+        if lines > MAX_LOG_LINES:
+            self.output.delete("1.0", f"{lines - MAX_LOG_LINES + 1}.0")
+
         self.output.see(tk.END)
         self.output.configure(state="disabled")
 
