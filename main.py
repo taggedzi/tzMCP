@@ -13,7 +13,7 @@ import re
 CONFIG_FILE = "config.yaml"
 DOMAINS_FILE = "domains_seen.txt"
 MAX_LOG_LINES = 2000  # Maximum number of lines in the console output
-PROXY_PORT = 8080     # Default port for mitmdump
+PROXY_PORT = 8080      # Default port for mitmdump
 
 class ProxyControlTab(ttk.Frame):
     def __init__(self, parent, status_callback):
@@ -32,6 +32,15 @@ class ProxyControlTab(ttk.Frame):
         self.output.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
         self.setup_tags()
+
+        # Browser launch button frame
+        browser_frame = ttk.LabelFrame(self, text="Launch Browser with Proxy")
+        browser_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
+
+        ttk.Button(browser_frame, text="Launch Chrome", command=self.launch_chrome).pack(side=tk.LEFT, padx=5, pady=5)
+        ttk.Button(browser_frame, text="Launch Firefox", command=self.launch_firefox).pack(side=tk.LEFT, padx=5, pady=5)
+        ttk.Button(browser_frame, text="Launch Brave", command=self.launch_brave).pack(side=tk.LEFT, padx=5, pady=5)
+        ttk.Button(browser_frame, text="Launch Edge", command=self.launch_edge).pack(side=tk.LEFT, padx=5, pady=5)
 
     def is_port_in_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -96,6 +105,38 @@ class ProxyControlTab(ttk.Frame):
         self.output.tag_config("warning", foreground="orange")
         self.output.tag_config("error", foreground="red")
         self.output.tag_config("debug", foreground="blue")
+
+    def launch_chrome(self):
+        path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+        if os.path.exists(path):
+            subprocess.Popen([path, f"--proxy-server=127.0.0.1:{PROXY_PORT}", "--new-window", "http://mitm.it"])
+            self.insert_output_line(f"[+] Launched Chrome with proxy on port {PROXY_PORT}")
+        else:
+            self.insert_output_line("[!] Chrome not found at expected path.")
+
+    def launch_firefox(self):
+        path = r"C:\Program Files\Mozilla Firefox\firefox.exe"
+        if os.path.exists(path):
+            subprocess.Popen([path, "-new-window", "http://mitm.it"])
+            self.insert_output_line(f"[+] Launched Firefox (manual proxy configuration may be needed).")
+        else:
+            self.insert_output_line("[!] Firefox not found at expected path.")
+
+    def launch_brave(self):
+        path = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+        if os.path.exists(path):
+            subprocess.Popen([path, f"--proxy-server=127.0.0.1:{PROXY_PORT}", "--new-window", "http://mitm.it"])
+            self.insert_output_line(f"[+] Launched Brave with proxy on port {PROXY_PORT}")
+        else:
+            self.insert_output_line("[!] Brave not found at expected path.")
+
+    def launch_edge(self):
+        path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        if os.path.exists(path):
+            subprocess.Popen([path, f"--proxy-server=127.0.0.1:{PROXY_PORT}", "--new-window", "http://mitm.it"])
+            self.insert_output_line(f"[+] Launched Edge with proxy on port {PROXY_PORT}")
+        else:
+            self.insert_output_line("[!] Edge not found at expected path.")
 
     def insert_output_line(self, text):
         if "[!]" in text:
