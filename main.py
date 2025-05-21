@@ -17,12 +17,15 @@ class ProxyControlTab(ttk.Frame):
         self.proc = None
         self.status_callback = status_callback
 
-        self.toggle_btn = ttk.Button(self, text="Start Proxy", command=self.toggle_proxy)
-        self.toggle_btn.pack(pady=10)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
 
-        self.output = ScrolledText(self, height=20, width=100, bg="black", fg="lime", insertbackground="white")
+        self.toggle_btn = ttk.Button(self, text="Start Proxy", command=self.toggle_proxy)
+        self.toggle_btn.grid(row=0, column=0, pady=10, sticky="ew")
+
+        self.output = ScrolledText(self, bg="black", insertbackground="white")
         self.output.configure(state="disabled")
-        self.output.pack(padx=10, pady=10)
+        self.output.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
     def toggle_proxy(self):
         if self.proc is None:
@@ -49,7 +52,7 @@ class ProxyControlTab(ttk.Frame):
             self.proc = None
             self.toggle_btn.config(text="Start Proxy")
             self.status_callback("Proxy Stopped", "red")
-            self.write_output("[!] Proxy stopped.\n")
+            self.write_output("[!] Proxy stopped.\n", "warning")
 
     def read_output(self):
         for line in self.proc.stdout:
@@ -58,11 +61,27 @@ class ProxyControlTab(ttk.Frame):
         self.toggle_btn.config(text="Start Proxy")
         self.status_callback("Proxy Exited", "yellow")
 
-    def write_output(self, text):
+    def write_output(self, text, tag=None):
         self.output.configure(state="normal")
-        self.output.insert(tk.END, text)
+        self.output.insert(tk.END, text, tag)
         self.output.see(tk.END)
         self.output.configure(state="disabled")
+
+    def setup_tags(self):
+        self.output.tag_config("info", foreground="lime")
+        self.output.tag_config("warning", foreground="yellow")
+        self.output.tag_config("error", foreground="red")
+        self.output.tag_config("debug", foreground="cyan")
+
+    def insert_output_line(self, text):
+        if "[!]" in text:
+            self.write_output(text, "warning")
+        elif "[+]" in text:
+            self.write_output(text, "info")
+        elif "[-]" in text:
+            self.write_output(text, "debug")
+        else:
+            self.write_output(text)
 
 
 class ConfigEditorTab(ttk.Frame):
@@ -182,6 +201,8 @@ class MainApp(tk.Tk):
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
         self.proxy_tab = ProxyControlTab(self.tabs, self.update_status)
+        self.proxy_tab.setup_tags()
+
         self.config_tab = ConfigEditorTab(self.tabs)
         self.domains_tab = DomainViewerTab(self.tabs)
 
