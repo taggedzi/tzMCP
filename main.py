@@ -5,12 +5,15 @@ import subprocess
 import threading
 import os
 import signal
+import socket
+import atexit
 import yaml
 import re
 
 CONFIG_FILE = "config.yaml"
 DOMAINS_FILE = "domains_seen.txt"
 MAX_LOG_LINES = 2000  # Maximum number of lines in the console output
+PROXY_PORT = 8080     # Default port for mitmdump
 
 class ProxyControlTab(ttk.Frame):
     def __init__(self, parent, status_callback):
@@ -30,6 +33,10 @@ class ProxyControlTab(ttk.Frame):
 
         self.setup_tags()
 
+    def is_port_in_use(self, port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(("127.0.0.1", port)) == 0
+
     def toggle_proxy(self):
         if self.proc is None:
             self.start_proxy()
@@ -37,9 +44,14 @@ class ProxyControlTab(ttk.Frame):
             self.stop_proxy()
 
     def start_proxy(self):
+        if self.is_port_in_use(PROXY_PORT):
+            self.insert_output_line(f"[!] Port {PROXY_PORT} is already in use. Cannot start proxy.\n")
+            self.status_callback("Port Conflict", "orange")
+            return
+
         script = os.path.abspath("save_media.py")
         self.proc = subprocess.Popen(
-            ["mitmdump", "-s", script],
+            ["mitmdump", "--listen-port", str(PROXY_PORT), "-s", script],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -213,6 +225,9 @@ class MainApp(tk.Tk):
         self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
 
         self.proxy_tab = ProxyControlTab(self.tabs, self.update_status)
+        atexit.register(self.proxy_tab.stop_proxy)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
         self.config_tab = ConfigEditorTab(self.tabs)
         self.domains_tab = DomainViewerTab(self.tabs)
 
@@ -222,6 +237,10 @@ class MainApp(tk.Tk):
 
     def update_status(self, message, color):
         self.status_bar.config(text=f"Status: {message}", bg=color)
+
+    def on_close(self):
+        self.proxy_tab.stop_proxy()
+        self.destroy()
 
 
 if __name__ == "__main__":
