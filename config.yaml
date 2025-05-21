@@ -21,3 +21,12 @@ blacklist:
 
 log_seen_domains: true       # Save new domains to domains_seen.txt
 auto_reload_config: true     # Reload YAML config on change
+
+# Filter out images with dimensions outside of these thresholds
+filter_pixel_dimensions:
+  enabled: true  # Turn on to activate filtering
+  min_width: 300
+  min_height: 200
+  max_width: 3840
+  max_height: 2160
+

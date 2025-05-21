@@ -5,6 +5,8 @@ import yaml
 import time
 import threading
 from pathlib import Path
+from PIL import Image, UnidentifiedImageError
+from io import BytesIO
 from colorama import init, Fore, Style
 init(autoreset=True)  # Resets color after each print
 
@@ -33,6 +35,8 @@ class MediaSaver:
         self.log_seen_domains = config.get("log_seen_domains", True)
         self.auto_reload_config = config.get("auto_reload_config", False)
         self.last_config_time = os.path.getmtime(CONFIG_PATH)
+        self.pixel_filter = config.get("filter_pixel_dimensions", {})
+        self.filter_enabled = self.pixel_filter.get("enabled", False)
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.seen_domains = set()
         print(f"[+] Media will be saved to: {self.save_dir}")
@@ -88,6 +92,26 @@ class MediaSaver:
             print(f"{Fore.CYAN}    Media Host: {domain}")
             print(f"{Fore.CYAN}    MIME: {mime} | Size: {size:,} bytes")
             return
+
+        # Filter by image dimensions if enabled
+        if self.filter_enabled and ext in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+            try:
+                image = Image.open(BytesIO(flow.response.content))
+                width, height = image.size
+                min_w = self.pixel_filter.get("min_width", 0)
+                min_h = self.pixel_filter.get("min_height", 0)
+                max_w = self.pixel_filter.get("max_width", float("inf"))
+                max_h = self.pixel_filter.get("max_height", float("inf"))
+
+                if not (min_w <= width <= max_w and min_h <= height <= max_h):
+                    print(f"[-] SKIPPED: {url} — {width}x{height} outside limits")
+                    return
+            except UnidentifiedImageError:
+                print(f"[!] SKIPPED: {url} — Not a valid image")
+                return
+            except Exception as e:
+                print(f"[!] Error during image dimension check: {e}")
+                return
 
         filename = os.path.basename(url.split("/")[-1].split("?")[0])
         filepath = self.save_dir / filename
