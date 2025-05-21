@@ -1,0 +1,23 @@
+save_dir: "E:/Home/Documents/Programming/mitmproxy/cache/mitmproxy_media"
+
+extensions:
+  - ".jpg"
+  - ".jpeg"
+  - ".png"
+  - ".gif"
+  - ".webp"
+  - ".mp4"
+  - ".webm"
+  - ".mov"
+
+# Comment or remove whitelist to allow all
+# whitelist:
+#   - "cdn\\..*"
+#   - "images\\.amazonaws\\.com"
+
+blacklist:
+  - "ads\\..*"
+  - ".*\\.doubleclick\\.net"
+
+log_seen_domains: true       # Save new domains to domains_seen.txt
+auto_reload_config: true     # Reload YAML config on change
