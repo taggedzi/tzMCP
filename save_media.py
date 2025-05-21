@@ -5,6 +5,8 @@ import yaml
 import time
 import threading
 from pathlib import Path
+from colorama import init, Fore, Style
+init(autoreset=True)  # Resets color after each print
 
 CONFIG_PATH = "config.yaml"
 DOMAINS_LOG_PATH = "domains_seen.txt"
@@ -71,6 +73,9 @@ class MediaSaver:
         url = flow.request.pretty_url
         domain = flow.request.host
         ext = os.path.splitext(url.split("?")[0])[-1].lower()
+        referer = flow.request.headers.get("referer", "unknown")
+        mime = flow.response.headers.get("content-type", "unknown")
+        size = len(flow.response.content)
 
         self.log_domain(domain)
 
@@ -78,7 +83,10 @@ class MediaSaver:
             return
 
         if not self.is_allowed_domain(domain):
-            print(f"[-] Skipping {url} (domain filtered)")
+            print(f"{Fore.YELLOW}[-] SKIPPED: {url}")
+            print(f"{Fore.CYAN}    Referer: {referer}")
+            print(f"{Fore.CYAN}    Media Host: {domain}")
+            print(f"{Fore.CYAN}    MIME: {mime} | Size: {size:,} bytes")
             return
 
         filename = os.path.basename(url.split("/")[-1].split("?")[0])
@@ -87,8 +95,13 @@ class MediaSaver:
         try:
             with open(filepath, "wb") as f:
                 f.write(flow.response.content)
-            print(f"[+] Saved: {filepath}")
+
+            print(f"{Fore.GREEN}[+] SAVED: {filename}")
+            print(f"{Fore.CYAN}    Referer: {referer}")
+            print(f"{Fore.CYAN}    Media Host: {domain}")
+            print(f"{Fore.CYAN}    MIME: {mime} | Size: {size:,} bytes")
         except Exception as e:
-            print(f"[!] Error saving {url} to {filepath}: {e}")
+            print(f"{Fore.RED}[!] Error saving {url} to {filepath}: {e}")
+
 
 addons = [MediaSaver()]
