@@ -37,6 +37,8 @@ class MediaSaver:
         self.last_config_time = os.path.getmtime(CONFIG_PATH)
         self.pixel_filter = config.get("filter_pixel_dimensions", {})
         self.filter_enabled = self.pixel_filter.get("enabled", False)
+        self.size_filter = config.get("filter_file_size", {})
+        self.size_filter_enabled = self.size_filter.get("enabled", False)
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.seen_domains = set()
         print(f"[+] Media will be saved to: {self.save_dir}")
@@ -111,6 +113,15 @@ class MediaSaver:
                 return
             except Exception as e:
                 print(f"[!] Error during image dimension check: {e}")
+                return
+
+        size = len(flow.response.content)
+
+        if self.size_filter_enabled:
+            min_bytes = self.size_filter.get("min_bytes", 0)
+            max_bytes = self.size_filter.get("max_bytes", float("inf"))
+            if not (min_bytes <= size <= max_bytes):
+                print(f"[-] SKIPPED: {url} — {size:,} bytes not within allowed range")
                 return
 
         filename = os.path.basename(url.split("/")[-1].split("?")[0])
