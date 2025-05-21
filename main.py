@@ -9,17 +9,21 @@ import socket
 import atexit
 import yaml
 import re
+import platform
 
 CONFIG_FILE = "config.yaml"
 DOMAINS_FILE = "domains_seen.txt"
+BROWSER_PATHS_FILE = "browser_paths.yaml"
 MAX_LOG_LINES = 2000  # Maximum number of lines in the console output
 PROXY_PORT = 8080      # Default port for mitmdump
+
 
 class ProxyControlTab(ttk.Frame):
     def __init__(self, parent, status_callback):
         super().__init__(parent)
         self.proc = None
         self.status_callback = status_callback
+        self.browser_paths = self.load_browser_paths()
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
@@ -33,14 +37,30 @@ class ProxyControlTab(ttk.Frame):
 
         self.setup_tags()
 
-        # Browser launch button frame
+        # Browser launch button frame with Safari for macOS
         browser_frame = ttk.LabelFrame(self, text="Launch Browser with Proxy")
         browser_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
 
         ttk.Button(browser_frame, text="Launch Chrome", command=self.launch_chrome).pack(side=tk.LEFT, padx=5, pady=5)
         ttk.Button(browser_frame, text="Launch Firefox", command=self.launch_firefox).pack(side=tk.LEFT, padx=5, pady=5)
         ttk.Button(browser_frame, text="Launch Brave", command=self.launch_brave).pack(side=tk.LEFT, padx=5, pady=5)
-        ttk.Button(browser_frame, text="Launch Edge", command=self.launch_edge).pack(side=tk.LEFT, padx=5, pady=5)
+        ttk.Button(browser_frame, text="Launch Safari", command=self.launch_safari).pack(side=tk.LEFT, padx=5, pady=5)
+
+    def load_browser_paths(self):
+        default_paths = {
+            "chrome": r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+            "firefox": r"C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+            "brave": r"C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe",
+            "safari": "/Applications/Safari.app"
+        }
+        try:
+            if os.path.exists(BROWSER_PATHS_FILE):
+                with open(BROWSER_PATHS_FILE, "r", encoding="utf-8") as f:
+                    user_paths = yaml.safe_load(f) or {}
+                    default_paths.update(user_paths)
+        except Exception as e:
+            self.insert_output_line(f"[!] Failed to load browser paths: {e}\n")
+        return default_paths
 
     def is_port_in_use(self, port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -107,36 +127,40 @@ class ProxyControlTab(ttk.Frame):
         self.output.tag_config("debug", foreground="blue")
 
     def launch_chrome(self):
-        path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-        if os.path.exists(path):
+        path = self.browser_paths.get("chrome")
+        if path and os.path.exists(path):
             subprocess.Popen([path, f"--proxy-server=127.0.0.1:{PROXY_PORT}", "--new-window", "http://mitm.it"])
-            self.insert_output_line(f"[+] Launched Chrome with proxy on port {PROXY_PORT}")
+            self.insert_output_line(f"[+] Launched Chrome with proxy on port {PROXY_PORT}\n")
         else:
-            self.insert_output_line("[!] Chrome not found at expected path.")
+            self.insert_output_line("[!] Chrome not found at configured path.\n")
 
     def launch_firefox(self):
-        path = r"C:\Program Files\Mozilla Firefox\firefox.exe"
-        if os.path.exists(path):
+        path = self.browser_paths.get("firefox")
+        if path and os.path.exists(path):
             subprocess.Popen([path, "-new-window", "http://mitm.it"])
-            self.insert_output_line(f"[+] Launched Firefox (manual proxy configuration may be needed).")
+            self.insert_output_line("[+] Launched Firefox (manual proxy configuration may be needed).\n")
         else:
-            self.insert_output_line("[!] Firefox not found at expected path.")
+            self.insert_output_line("[!] Firefox not found at configured path.\n")
 
     def launch_brave(self):
-        path = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
-        if os.path.exists(path):
+        path = self.browser_paths.get("brave")
+        if path and os.path.exists(path):
             subprocess.Popen([path, f"--proxy-server=127.0.0.1:{PROXY_PORT}", "--new-window", "http://mitm.it"])
-            self.insert_output_line(f"[+] Launched Brave with proxy on port {PROXY_PORT}")
+            self.insert_output_line(f"[+] Launched Brave with proxy on port {PROXY_PORT}\n")
         else:
-            self.insert_output_line("[!] Brave not found at expected path.")
+            self.insert_output_line("[!] Brave not found at configured path.\n")
 
-    def launch_edge(self):
-        path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-        if os.path.exists(path):
-            subprocess.Popen([path, f"--proxy-server=127.0.0.1:{PROXY_PORT}", "--new-window", "http://mitm.it"])
-            self.insert_output_line(f"[+] Launched Edge with proxy on port {PROXY_PORT}")
+    def launch_safari(self):
+        if platform.system().lower() == "darwin":
+            try:
+                subprocess.Popen([
+                    "open", "-a", "Safari", "--args", "http://mitm.it"
+                ])
+                self.insert_output_line("[+] Launched Safari (system proxy must be pre-configured).\n")
+            except Exception as e:
+                self.insert_output_line(f"[!] Failed to launch Safari: {e}\n")
         else:
-            self.insert_output_line("[!] Edge not found at expected path.")
+            self.insert_output_line("[!] Safari launch is only supported on macOS.\n")
 
     def insert_output_line(self, text):
         if "[!]" in text:
