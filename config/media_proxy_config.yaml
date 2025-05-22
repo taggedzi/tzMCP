@@ -1,0 +1,24 @@
+save_dir: E:\Home\Documents\Programming\mitmproxy\cache
+extensions:
+- .jpg
+- .jpeg
+- .png
+- .gif
+- .webp
+- .mp4
+- .webm
+- .mov
+whitelist: []
+blacklist: []
+filter_pixel_dimensions:
+  enabled: false
+  min_width: 1
+  min_height: 1
+  max_width: 12000
+  max_height: 12000
+filter_file_size:
+  enabled: false
+  min_bytes: 1
+  max_bytes: 157286400
+log_seen_domains: true
+auto_reload_config: true
