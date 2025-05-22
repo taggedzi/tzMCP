@@ -2,13 +2,13 @@ import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
 
-from scripts.config_manager import ConfigManager
-from scripts.proxy_control import ProxyController
-from scripts.proxy_tab import ProxyTab
-from scripts.browser_tab import BrowserTab
-from scripts.config_tab import ConfigTab
-from scripts.status_bar import StatusBar
-from scripts.domain_tab import DomainTab
+from src.config_manager import ConfigManager
+from src.proxy_control import ProxyController
+from src.proxy_tab import ProxyTab
+from src.browser_tab import BrowserTab
+from src.config_tab import ConfigTab
+from src.status_bar import StatusBar
+from src.domain_tab import DomainTab
 
 
 class MainApp(tk.Tk):

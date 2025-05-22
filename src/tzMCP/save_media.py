@@ -26,7 +26,7 @@ for p in (BASE_DIR, BASE_DIR / "scripts"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from scripts.config_manager import ConfigManager, Config  # after path tweak
+from src.config_manager import ConfigManager, Config  # after path tweak
 print("TRACE-A  ▶  module imported")
 
 # ---------------------------------------------------------------------------

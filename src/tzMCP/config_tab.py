@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 
-from scripts.config_manager import ConfigManager, Config
-from scripts.app_constants import LOG_BUFFER_SIZE, ANSI_PATTERN, ANSI_COLORS, STATUS_COLORS
+from src.config_manager import ConfigManager, Config
+from src.app_constants import LOG_BUFFER_SIZE, ANSI_PATTERN, ANSI_COLORS, STATUS_COLORS
 
 class ConfigTab(ttk.Frame):
     """Tab for viewing and editing application configuration."""
