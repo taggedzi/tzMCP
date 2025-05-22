@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77.0.0",]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tzMCP"
+version = "0.0.1"
+description = "A Media Download Proxy. Using mitmproxy to allow download of media from browsed sites, including html, css, js, images, and other media types."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+keywords = [ "Media Download Proxy", "Mitmproxy", "HTML", "CSS", "JavaScript", "Images", "Other Media Types", "Download Proxy",]
+classifiers = [ "Programming Language :: Python :: 3", "Operating System :: OS Independent", "Development Status :: 3 - Alpha", "Environment :: Console", "Environment :: X11 Applications :: tkinter", "Topic :: Utilities",]
+dependencies = [ ]
+[[project.authors]]
+name = "Matthew Craig"
+email = "taggedzi.mpc@gmail.com"
+
+[project.optional-dependencies]
+dev = [ "coverage==7.8.0", "invoke==2.2.0", "pdoc==15.0.3", "pytest==8.3.5", "pytest-cov==6.1.1", "pytest-qt==4.4.0", "toml==0.10.2",]
+
+[project.scripts]
+tzMCP-cli = "tzMCP.cli:main"
+tzMCP-gui = "tzMCP.gui:main"
+
+[project.urls]
+Homepage = "https://github.com/taggedzi/tzMCP"

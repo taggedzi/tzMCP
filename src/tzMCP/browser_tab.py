@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 
-from src.browser_launcher import launch_browser, LAUNCH_COMMANDS
-from src.proxy_control import ProxyController
+from tzMCP.browser_launcher import launch_browser, LAUNCH_COMMANDS
+from tzMCP.proxy_control import ProxyController
 
 
 class BrowserTab(ttk.Frame):

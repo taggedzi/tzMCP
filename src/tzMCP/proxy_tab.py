@@ -3,9 +3,9 @@ from tkinter import ttk, messagebox
 from tkinter.scrolledtext import ScrolledText
 import threading
 
-from src.app_constants import LOG_BUFFER_SIZE, ANSI_PATTERN, ANSI_COLORS
-from src.proxy_control import ProxyController
-from src.status_bar import StatusBar
+from tzMCP.app_constants import LOG_BUFFER_SIZE, ANSI_PATTERN, ANSI_COLORS
+from tzMCP.proxy_control import ProxyController
+from tzMCP.status_bar import StatusBar
 
 class ProxyTab(ttk.Frame):
     """Tab for controlling and monitoring the download proxy."""

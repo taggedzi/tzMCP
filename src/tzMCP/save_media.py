@@ -1,13 +1,12 @@
-import sys
-sys.dont_write_bytecode = True
-
-from mitmproxy import http, ctx
+import sys; sys.dont_write_bytecode = True
 import os, re, time, threading, sys
-from pathlib import Path
 from urllib.parse import urlparse, unquote
+from pathlib import Path
 from io import BytesIO
-from PIL import Image, UnidentifiedImageError
 from datetime import datetime
+from mitmproxy import http, ctx
+from PIL import Image, UnidentifiedImageError
+from tzMCP.config_manager import ConfigManager, Config  # after path tweak
 
 # ---------------------------------------------------------------------------
 # Path & import setup
@@ -25,9 +24,6 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 for p in (BASE_DIR, BASE_DIR / "scripts"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
-
-from src.config_manager import ConfigManager, Config  # after path tweak
-print("TRACE-A  ▶  module imported")
 
 # ---------------------------------------------------------------------------
 # Helpers
