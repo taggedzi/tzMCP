@@ -1,4 +1,4 @@
-save_dir: E:\Home\Documents\Programming\mitmproxy\cache\mitmproxy_media
+save_dir: E:\Home\Documents\Programming\mitmproxy\cache
 extensions:
 - .jpg
 - .jpeg
@@ -9,13 +9,11 @@ extensions:
 - .webm
 - .mov
 whitelist: []
-blacklist:
-- ads\..*
-- .*\.doubleclick\.net
+blacklist: []
 filter_pixel_dimensions:
   enabled: false
-  min_width: 301
-  min_height: 301
+  min_width: 1
+  min_height: 1
   max_width: 12000
   max_height: 12000
 filter_file_size:

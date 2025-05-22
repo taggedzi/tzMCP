@@ -18,9 +18,9 @@ class MainApp(tk.Tk):
         self.title("Media Download Proxy Controller")
 
         # Initialize controllers (always use project/config/media_proxy_config.yaml)
-        project_root       = Path(__file__).parent.parent
+        project_root       = Path(__file__).parent.parent.parent
         config_file        = project_root / "config" / "media_proxy_config.yaml"
-        
+
         print(f"Project root: {project_root}")
         print(f"Config file: {config_file}")
         print(f"Config file exists: {config_file.exists()}")
@@ -44,7 +44,7 @@ class MainApp(tk.Tk):
         # Proxy Control tab
         status = StatusBar(self)
         status.pack(side='bottom', fill='x')
-        
+
         self.proxy_tab = ProxyTab(notebook, self.proxy_controller, status)
         notebook.add(self.proxy_tab, text="Proxy Control")
 
@@ -55,7 +55,7 @@ class MainApp(tk.Tk):
         # Configuration tab
         config_tab = ConfigTab(notebook, self.config_manager, self.config)
         notebook.add(config_tab, text="Configuration")
-        
+
         # Domain Viewer tab
         domain_tab = DomainTab(notebook)
         notebook.add(domain_tab, text="Domain Viewer")
@@ -75,6 +75,5 @@ class MainApp(tk.Tk):
     def run(self):
         self.mainloop()
 
-
-if __name__ == "__main__":
+def main():
     MainApp().run()

@@ -1,12 +1,11 @@
-import sys; sys.dont_write_bytecode = True
-import os, re, time, threading, sys
-from urllib.parse import urlparse, unquote
-from pathlib import Path
-from io import BytesIO
-from datetime import datetime
+# save_media.py — mitmproxy addon
 from mitmproxy import http, ctx
+import os, re, time, threading, sys
+from pathlib import Path
+from urllib.parse import urlparse, unquote
+from io import BytesIO
 from PIL import Image, UnidentifiedImageError
-from tzMCP.config_manager import ConfigManager, Config  # after path tweak
+from datetime import datetime
 
 # ---------------------------------------------------------------------------
 # Path & import setup
@@ -14,8 +13,6 @@ from tzMCP.config_manager import ConfigManager, Config  # after path tweak
 BASE_DIR   = Path(__file__).parent.parent           # project root
 CONFIG_DIR = BASE_DIR / "config"
 CONFIG_PATH = CONFIG_DIR / "media_proxy_config.yaml"
-SAVE_MEDIA_DIR = BASE_DIR / "scripts"
-SAVE_MEDIA_PY = SAVE_MEDIA_DIR / "save_media.py"
 LOGS_DIR  = BASE_DIR / "logs"
 DOMAINS_LOG_PATH = LOGS_DIR / "domains_seen.txt"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -24,6 +21,8 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 for p in (BASE_DIR, BASE_DIR / "scripts"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
+
+from tzMCP.config_manager import ConfigManager, Config  # after path tweak
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -42,10 +41,8 @@ class MediaSaver:
     """Addon that saves responses matching config filters and logs skip reasons."""
 
     def __init__(self):
-        print("TRACE-B  ▶  MediaSaver.__init__ started")
         self.config: Config = _load_config()
         self._compile_filters()
-        print("TRACE-C  ▶  MediaSaver.__init__ finished")
         ctx.log.info("MediaSaver loaded ✅")
         if self.config.auto_reload_config:
             threading.Thread(target=self._watch_config, daemon=True).start()
@@ -90,7 +87,6 @@ class MediaSaver:
     # mitmproxy hooks
     # -------------------------------------------------------------------
     def response(self, flow: http.HTTPFlow):
-        print("TRACE-D  ▶  response() entered for", flow.request.url[:60])
         url = flow.request.url
         domain = flow.request.host
         content = flow.response.content
@@ -98,20 +94,20 @@ class MediaSaver:
 
         # 1. Extension filter
         if not self.ext_pattern.search(url):
-            _log_skip(f"{url} extension not allowed")
+            _log_skip(f"{url} – extension not allowed")
             return
 
         # 2. Domain filters
         if self.whitelist_pattern and not self.whitelist_pattern.search(domain):
-            _log_skip(f"{url} domain not whitelisted")
+            _log_skip(f"{url} – domain not whitelisted")
             return
         if self.blacklist_pattern and self.blacklist_pattern.search(domain):
-            _log_skip(f"{url} domain blacklisted")
+            _log_skip(f"{url} – domain blacklisted")
             return
 
         # 3. Size filter
         if self.size_enabled and not (self.min_bytes <= size <= self.max_bytes):
-            _log_skip(f"{url} {size}B not in [{self.min_bytes},{self.max_bytes}]")
+            _log_skip(f"{url} – {size}B not in [{self.min_bytes},{self.max_bytes}]")
             return
 
         # 4. Pixel filter
@@ -120,10 +116,10 @@ class MediaSaver:
                 img = Image.open(BytesIO(content))
                 w, h = img.size
                 if not (self.min_w <= w <= self.max_w and self.min_h <= h <= self.max_h):
-                    _log_skip(f"{url}: {w}x{h}px not in range")
+                    _log_skip(f"{url} – {w}x{h}px not in range")
                     return
             except UnidentifiedImageError:
-                _log_skip(f"{url} not an image for pixel check")
+                _log_skip(f"{url} – not an image for pixel check")
                 return
 
         # 5. Save file
@@ -132,9 +128,9 @@ class MediaSaver:
         try:
             with save_path.open('wb') as f:
                 f.write(content)
-            ctx.log.info(f"[+] Saved → {save_path} ({size}B)")
+            ctx.log.info(f"💾 Saved → {save_path} ({size}B)")
         except Exception as e:
-            ctx.log.error(f"[!] Save failed: {e}")
+            ctx.log.error(f"Save failed: {e}")
             return
 
         # 6. Log domain
@@ -143,9 +139,4 @@ class MediaSaver:
                 domf.write(domain + "\n")
 
 
-# ---------------------------------------------------------------------------
-# Activate addon
-# ---------------------------------------------------------------------------
-ctx.log.info("💡 MediaSaver module loaded")  # optional one-time banner
-print("TRACE-E  ▶  module bottom reached, registering addon")
-addons = [MediaSaver()]  # <- EXACTLY this, at column 0
+addons = [MediaSaver()]

@@ -141,3 +141,36 @@ def update_dunder_version(version: str):
 
     INIT_PATH.write_text("\n".join(new_lines) + "\n")
     print(f"🔢 Updated __version__ in {INIT_PATH}")
+
+
+@task(help={"root": "Project root to clean (defaults to tasks.py location)"})
+def clean_pycache(c, root="."):
+    """
+    Recursively delete all __pycache__ folders and stray *.pyc files.
+
+    Example:
+        inv clean-pycache          # clean from project root
+        inv clean-pycache --root=../otherproj
+    """
+    root_path = Path(root).resolve()
+    if not root_path.exists():
+        print(f"[clean-pycache] Path not found: {root_path}")
+        return
+
+    removed_dirs = 0
+    removed_files = 0
+
+    for p in root_path.rglob("*"):
+        # Remove __pycache__ directories
+        if p.is_dir() and p.name == "__pycache__":
+            shutil.rmtree(p, ignore_errors=True)
+            removed_dirs += 1
+        # Remove loose .pyc files (if any are outside __pycache__)
+        elif p.is_file() and p.suffix == ".pyc":
+            p.unlink(missing_ok=True)
+            removed_files += 1
+
+    print(
+        f"[clean-pycache] removed {removed_dirs} __pycache__ director"
+        f"ies and {removed_files} stray *.pyc files under {root_path}"
+    )

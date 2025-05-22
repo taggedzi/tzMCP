@@ -1,14 +1,18 @@
+import os
 import subprocess
 import socket
 import sys
 from pathlib import Path
 from typing import Optional
+import threading
 
 
 class ProxyController:
     """Launch and manage a mitmdump process running the save_media.py addon."""
 
     def __init__(self, proxy_executable_path: str, proxy_port: int = 8080):
+        print(f"Proxy controller initialized")
+        print(f"proxy_executable_path: {proxy_executable_path}")
         self.proxy_executable_path = proxy_executable_path  # path to save_media.py
         self.proxy_port = proxy_port
         self.process: Optional[subprocess.Popen] = None
@@ -35,14 +39,17 @@ class ProxyController:
             raise RuntimeError(f"Port {self.proxy_port} is already in use.")
 
         script_path = Path(self.proxy_executable_path).resolve()
+        print(f"Script path: {script_path}")
         if not script_path.exists():
             raise RuntimeError(f"Proxy script not found at {script_path}")
-       
-        print(f"Script path: {script_path}")
-    
+
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+
         cmd = [
             str(self._mitmdump_exe()), 
-            "-vv",  # quiet mitmdump output
+            "-q",  # quiet mitmdump output
+            # "--set", "console_eventlog=false", # suppress INFO flood
             "--listen-port", str(self.proxy_port),
             "-s", str(script_path),
         ]
@@ -52,8 +59,23 @@ class ProxyController:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
             bufsize=1,
+            cwd=str(script_path.parent),
+            env=env, 
         )
+        threading.Thread(target=self._drain_stdout, daemon=True).start()
+
+    def _drain_stdout(self):
+        if not self.process or not self.process.stdout:
+            return
+        for line in self.process.stdout:
+            # mirror everything to the parent shell (optional)
+            print(line, end="")
+
+            # forward only the lines we care about to the GUI
+            if self.gui_queue and any(tag in line for tag in ("💾", "⏭", "MediaSaver")):
+                self.gui_queue.put(line)
 
     def stop_proxy(self) -> None:
         """Gracefully terminate the mitmdump subprocess."""
@@ -65,3 +87,8 @@ class ProxyController:
                 self.process.kill()
                 self.process.wait()
         self.process = None
+
+    def _mirror_stdout(self):
+        if self.process and self.process.stdout:
+            for line in self.process.stdout:
+                print(line, end="")      # goes to PowerShell as well
