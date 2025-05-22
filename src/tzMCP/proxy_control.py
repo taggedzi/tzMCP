@@ -10,12 +10,13 @@ import threading
 class ProxyController:
     """Launch and manage a mitmdump process running the save_media.py addon."""
 
-    def __init__(self, proxy_executable_path: str, proxy_port: int = 8080):
+    def __init__(self, proxy_executable_path: str, proxy_port: int = 8080, gui_queue=None):
         print(f"Proxy controller initialized")
         print(f"proxy_executable_path: {proxy_executable_path}")
         self.proxy_executable_path = proxy_executable_path  # path to save_media.py
         self.proxy_port = proxy_port
         self.process: Optional[subprocess.Popen] = None
+        self.gui_queue = gui_queue  # <-- ADD THIS LINE
 
     # ------------------------------------------------------------------
     # Helpers
@@ -50,6 +51,7 @@ class ProxyController:
             str(self._mitmdump_exe()), 
             "-q",  # quiet mitmdump output
             # "--set", "console_eventlog=false", # suppress INFO flood
+            "--set", "console_eventlog_verbosity=info",  # <== ADD THIS
             "--listen-port", str(self.proxy_port),
             "-s", str(script_path),
         ]
@@ -69,10 +71,12 @@ class ProxyController:
     def _drain_stdout(self):
         if not self.process or not self.process.stdout:
             return
+        
         for line in self.process.stdout:
             # mirror everything to the parent shell (optional)
             print(line, end="")
-
+            # if self.gui_queue:
+            #     self.gui_queue.put(line)
             # forward only the lines we care about to the GUI
             if self.gui_queue and any(tag in line for tag in ("💾", "⏭", "MediaSaver")):
                 self.gui_queue.put(line)

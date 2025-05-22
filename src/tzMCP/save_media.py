@@ -35,6 +35,8 @@ def _load_config() -> Config:
 def _log_skip(reason: str):
     """Log a red‑colored skip reason in mitmproxy console."""
     ctx.log.error(f"⏭ {reason}")
+    print(f"⏭ {reason}", flush=True)
+
 
 
 class MediaSaver:
@@ -43,7 +45,8 @@ class MediaSaver:
     def __init__(self):
         self.config: Config = _load_config()
         self._compile_filters()
-        ctx.log.info("MediaSaver loaded ✅")
+        ctx.log.info("MediaSaver addon initialized 💡")
+        print("MediaSaver addon initialized 💡", flush=True)
         if self.config.auto_reload_config:
             threading.Thread(target=self._watch_config, daemon=True).start()
 
@@ -60,6 +63,7 @@ class MediaSaver:
                     self.config = _load_config()
                     self._compile_filters()
                     ctx.log.info("🔄 MediaSaver config reloaded")
+                    print("🔄 MediaSaver config reloaded", flush=True)
                     last = m
 
     def _compile_filters(self):
@@ -94,7 +98,8 @@ class MediaSaver:
 
         # 1. Extension filter
         if not self.ext_pattern.search(url):
-            _log_skip(f"{url} – extension not allowed")
+            # Commented out too many files shown that are irrelivant.
+            # _log_skip(f"{url} – extension not allowed")
             return
 
         # 2. Domain filters
@@ -123,14 +128,18 @@ class MediaSaver:
                 return
 
         # 5. Save file
-        fname = unquote(os.path.basename(urlparse(url).path))
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        parsed_path = urlparse(url).path
+        fname = unquote(os.path.basename(parsed_path)) or f"untitled_{int(time.time() * 1000)}"
         save_path = self.save_dir / fname
         try:
             with save_path.open('wb') as f:
                 f.write(content)
             ctx.log.info(f"💾 Saved → {save_path} ({size}B)")
+            print(f"💾 Saved → {save_path} ({size}B)", flush=True)
         except Exception as e:
-            ctx.log.error(f"Save failed: {e}")
+            ctx.log.error(f"Saved failed: {e}")
+            print(f"Save failed: {e}", flush=True)
             return
 
         # 6. Log domain
