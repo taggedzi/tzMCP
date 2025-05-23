@@ -1,35 +1,21 @@
+import mimetypes
 import os
 import sys
 import time
-import mimetypes
-import threading
-from urllib.parse import urlparse, unquote
-from mitmproxy import http, ctx
-from pathlib import Path
-import yaml
-import re
 from io import BytesIO
-import json
+from pathlib import Path
+from time import perf_counter
+from urllib.parse import urlparse, unquote
 import requests
+from mitmproxy import http, ctx
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from time import perf_counter
 
-def log_duration(label, start_time):
-    duration = perf_counter() - start_time
-    msg = f"[PROFILE] {label} took {duration:.4f}s"
-    
-    # Console output only for diagnostics
-    print(msg, flush=True)
-    
-    # Optionally push to GUI log as low-priority message (not necessary)
-    if hasattr(ctx, "gui_queue"):
-        ctx.gui_queue.put({
-            "color": "purple",
-            "weight": "normal",
-            "lines": [msg]
-        })
-
+try:
+    import magic
+    HAS_MAGIC = True
+except ImportError:
+    HAS_MAGIC = False
 
 # ---------------------------------------------------------------------------
 # Path & import setup
@@ -40,19 +26,27 @@ CONFIG_PATH = CONFIG_DIR / "media_proxy_config.yaml"
 LOGS_DIR  = BASE_DIR / "logs"
 DOMAINS_LOG_PATH = LOGS_DIR / "domains_seen.txt"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
 # Ensure project and scripts dirs on sys.path
 for p in (BASE_DIR, BASE_DIR / "scripts"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
-
 from tzMCP.config_manager import ConfigManager, Config  # after path tweak
 
-try:
-    import magic
-    HAS_MAGIC = True
-except ImportError:
-    HAS_MAGIC = False
+
+def log_duration(label, start_time):
+    duration = perf_counter() - start_time
+    msg = f"[PROFILE] {label} took {duration:.4f}s"
+
+    # Console output only for diagnostics
+    print(msg, flush=True)
+
+    # Optionally push to GUI log as low-priority message (not necessary)
+    if hasattr(ctx, "gui_queue"):
+        ctx.gui_queue.put({
+            "color": "purple",
+            "weight": "normal",
+            "lines": [msg]
+        })
 
 EXT_MAP = {
     "image/jpeg": ".jpg",
