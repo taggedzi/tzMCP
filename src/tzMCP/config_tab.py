@@ -70,10 +70,15 @@ class ConfigTab(ttk.Frame):
         self.max_bytes_entry.grid(row=8, column=3, sticky='w', padx=5, pady=2)
 
         # Flags
+        self.log_internal_debug_var = tk.BooleanVar(value=self.config.log_internal_debug)
+        tk.Checkbutton(self, text="Log Internal Debug", variable=self.log_internal_debug_var).grid(row=9, column=0, columnspan=1, sticky='w', padx=5, pady=2)
+
         self.log_seen_var = tk.BooleanVar(value=self.config.log_seen_domains)
-        tk.Checkbutton(self, text="Log Seen Domains", variable=self.log_seen_var).grid(row=9, column=0, sticky='w', padx=5, pady=2)
+        tk.Checkbutton(self, text="Log Seen Domains", variable=self.log_seen_var).grid(row=9, column=1, columnspan=1, sticky='w', padx=5, pady=2)
+
         self.reload_var = tk.BooleanVar(value=self.config.auto_reload_config)
-        tk.Checkbutton(self, text="Auto Reload Config", variable=self.reload_var).grid(row=9, column=1, sticky='w', padx=5, pady=2)
+        tk.Checkbutton(self, text="Auto Reload Config", variable=self.reload_var).grid(row=9, column=2, columnspan=1, sticky='w', padx=5, pady=2)
+
 
         # Save Button
         tk.Button(self, text="Save Configuration", command=self._save).grid(row=10, column=0, columnspan=4, pady=10)
@@ -120,6 +125,7 @@ class ConfigTab(ttk.Frame):
                     'min_bytes': int(self.min_bytes_var.get()),
                     'max_bytes': int(self.max_bytes_var.get())
                 },
+                log_internal_debug=self.log_internal_debug_var.get(),
                 log_seen_domains=self.log_seen_var.get(),
                 auto_reload_config=self.reload_var.get()
             )

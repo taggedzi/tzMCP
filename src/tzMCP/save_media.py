@@ -1,5 +1,7 @@
 import mimetypes
+import hashlib
 import os
+import re
 import sys
 import time
 from io import BytesIO
@@ -10,6 +12,7 @@ import requests
 from mitmproxy import http, ctx
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
 
 try:
     import magic
@@ -97,6 +100,19 @@ def structured_log(color: str, *lines: str):
     if hasattr(ctx, "gui_queue"):
         ctx.gui_queue.put(entry)
 
+def structured_debug(color: str, *lines: str):
+    entry = {
+        "color": f"{color}",
+        "weight": "italics",
+        "lines": list(lines)
+    }
+    # Send to external GUI log server
+    send_log_to_gui(entry)
+    
+    # Optionally send directly if GUI is embedded
+    if hasattr(ctx, "gui_queue"):
+        ctx.gui_queue.put(entry)
+
 class ConfigChangeHandler(FileSystemEventHandler):
     def __init__(self, path, on_change):
         self.path = str(path)
@@ -109,6 +125,32 @@ class ConfigChangeHandler(FileSystemEventHandler):
 def domain_matches(domain: str, patterns: list[str]) -> bool:
     domain = domain.lower()
     return any(domain == pat or domain.endswith(f".{pat}") for pat in patterns)
+
+
+# ---------------------------------------------------------------------------
+# File name sanitation
+# ---------------------------------------------------------------------------
+WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
+    "COM5", "COM6", "COM7", "COM8", "COM9",
+    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+}
+def sanitize_filename(filename: str, fallback_url: str = "") -> str:
+    name = re.sub(r"[^\w\-_. ]", "_", filename)      # Replace unsafe chars
+    name = re.sub(r"\s+", "_", name.strip())         # Normalize whitespace
+    name = name[:255]                                # Truncate long names
+    if not name or name.upper() in WINDOWS_RESERVED_NAMES:
+        hash_val = hashlib.sha256(fallback_url.encode()).hexdigest()[:12]
+        name = f"file_{hash_val}"
+
+    return name
+def safe_filename(raw_name: str, ext: str, fallback_url: str = "") -> str:
+    if not raw_name or "." not in raw_name:
+        raw_name = f"file_{int(time.time() * 1000)}{ext}"
+    elif not os.path.splitext(raw_name)[1]:
+        raw_name += ext
+    return sanitize_filename(raw_name, fallback_url)
+
 
 class MediaSaver:
     def __init__(self):
@@ -137,6 +179,7 @@ class MediaSaver:
         """Start watchdog observer to watch the config file."""
         if not CONFIG_PATH.exists():
             ctx.log.error(f"⚠ Cannot watch config; file does not exist: {CONFIG_PATH}")
+            structured_log("red", f"⚠ Cannot watch config; file does not exist: {CONFIG_PATH}")
             return
 
         event_handler = ConfigChangeHandler(CONFIG_PATH, self._on_config_change)
@@ -167,12 +210,9 @@ class MediaSaver:
         log_duration("Extension check", start_ext_check)
 
         # Extract filename or generate
-        raw_path = urlparse(url).path
-        fname = unquote(os.path.basename(raw_path))
-        if not fname or "." not in fname:
-            fname = f"file_{int(time.time() * 1000)}{ext}"
-        elif not os.path.splitext(fname)[1]:
-            fname += ext
+        raw_fname = unquote(os.path.basename(urlparse(url).path))
+        fname = safe_filename(raw_fname, ext, url)
+        structured_debug("purple", f"[SANITIZED] {raw_fname} → {fname}")
 
         # Check extension filter
         start_type_check = perf_counter()
