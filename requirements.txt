@@ -7,15 +7,17 @@ blinker==1.9.0
 Brotli==1.1.0
 certifi==2025.4.26
 cffi==1.17.1
+charset-normalizer==3.4.2
 click==8.2.1
 colorama==0.4.6
-coverage==7.8.1
+coverage==7.8.0
 cryptography==44.0.3
 Flask==3.1.0
 h11==0.16.0
 h2==4.1.0
 hpack==4.1.0
 hyperframe==6.1.0
+idna==3.10
 iniconfig==2.1.0
 invoke==2.2.0
 itsdangerous==2.2.0
@@ -29,6 +31,7 @@ mitmproxy_rs==0.12.3
 msgpack==1.1.0
 packaging==25.0
 passlib==1.7.4
+pdoc==15.0.3
 pillow==11.2.1
 pluggy==1.6.0
 publicsuffix2==2.20191221
@@ -36,19 +39,26 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.22
 pydivert==2.1.0
+Pygments==2.19.1
 pylsqpack==0.3.22
 pyOpenSSL==25.0.0
 pyparsing==3.2.3
 pyperclip==1.9.0
 pytest==8.3.5
 pytest-cov==6.1.1
+pytest-qt==4.4.0
+python-magic-bin==0.4.14
 PyYAML==6.0.2
+requests==2.32.3
 ruamel.yaml==0.18.10
 service-identity==24.2.0
 sortedcontainers==2.4.0
 toml==0.10.2
 tornado==6.4.2
 typing_extensions==4.13.2
+# Editable Git install with no remote (tzMCP==0.0.1)
+-e e:\home\documents\programming\tzmcp
+urllib3==2.4.0
 urwid==2.6.16
 wcwidth==0.2.13
 Werkzeug==3.1.3

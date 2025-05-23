@@ -10,6 +10,7 @@ import yaml
 import re
 from io import BytesIO
 import json
+import requests
 
 # ---------------------------------------------------------------------------
 # Path & import setup
@@ -64,18 +65,25 @@ def detect_mime(content: bytes, headers: dict) -> str:
 
     return mime
 
-def structured_log(tag: str, color: str, *lines: str):
+def send_log_to_gui(data: dict):
+    try:
+        requests.post("http://localhost:5001", json=data, timeout=0.5)
+    except requests.exceptions.RequestException:
+        pass
+
+def structured_log(color: str, *lines: str):
     entry = {
-        "tag": tag,
         "color": color,
         "weight": "bold",
         "lines": list(lines)
     }
-    print(json.dumps(entry), flush=True)
+    # Send to external GUI log server
+    send_log_to_gui(entry)
+    
+    # Optionally send directly if GUI is embedded
     if hasattr(ctx, "gui_queue"):
-        ctx.gui_queue.put(json.dumps(entry))
-
-
+        ctx.gui_queue.put(entry)
+    
 class MediaSaver:
     def __init__(self):
         self.config_manager = ConfigManager()
@@ -88,16 +96,16 @@ class MediaSaver:
         
         self.last_config_time = 0
         ctx.log.info(f"MediaSaver addon initialized 💡→ {self.save_dir}")
-        structured_log("📂", "black", f"MediaSaver addon initialized 💡→ {self.save_dir}")
+        structured_log("black", f"📂 MediaSaver addon initialized 💡→ {self.save_dir}")
 
     def _watch_config(self):
         try:
             self.config = self.config_manager.load_config()
             ctx.log.info("MediaServer: 🔄 Reloaded config")
-            structured_log("🔄", "blue", "MediaServer: 🔄 Reloaded config")
+            structured_log("blue", "MediaServer: 🔄 Reloaded config")
         except Exception as e:
             ctx.log.error(f"MediaSaver: Failed to reload config: {e}")
-            structured_log("❌", "red", f"MediaSaver: Failed to reload config: {e}")
+            structured_log("red", f"❌ MediaSaver: Failed to reload config: {e}")
 
     def _start_watcher(self):
         def watch():
@@ -124,20 +132,20 @@ class MediaSaver:
 
         # Check extension filter
         if self.config.extensions and ext.lower() not in [e.lower() for e in self.config.extensions]:
-            structured_log("⏭", "orange", 
-                           f"Skipped {fname}", "\tURL: {url}", "\tReason: extension {ext} not allowed")
+            structured_log("orange", 
+                           f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: extension {ext} not allowed")
             return
 
         # Check whitelist
         if self.config.whitelist and not any(re.search(pat, url) for pat in self.config.whitelist):
-            structured_log("⏭", "orange", 
-                           f"Skipped {fname}", "\tURL: {url}", "\tReason not in whitelist.")
+            structured_log("orange", 
+                           f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason not in whitelist.")
             return
 
         # Check blacklist
         if any(re.search(pat, url) for pat in self.config.blacklist):
-            structured_log("⏭", "orange", 
-                           f"Skipped {fname}", "\tURL: {url}", "\tReason in blacklist.")
+            structured_log("orange", 
+                           f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason in blacklist.")
             return
 
         # Image/video filtering by size/dimensions
@@ -151,28 +159,28 @@ class MediaSaver:
                 w, h = img.size
                 if not (self.config.filter_pixel_dimensions["min_width"] <= w <= self.config.filter_pixel_dimensions["max_width"] and
                         self.config.filter_pixel_dimensions["min_height"] <= h <= self.config.filter_pixel_dimensions["max_height"]):
-                    structured_log("⏭", "orange",
-                            f"Skipped {fname}", "\tURL: {url}", "\tReason: dimensions {w}x{h} outside range.")
+                    structured_log("orange",
+                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: dimensions {w}x{h} outside range.")
                     return
             except Exception as e:
-                structured_log("❌", "red",
-                            f"Skipped {fname}", "\tURL: {url}", "\tReason: could not read image size.", "{e}")
+                structured_log("red",
+                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: could not read image size.", "{e}")
                 return
 
         if (is_image or is_video) and self.config.filter_file_size.get("enabled"):
             min_b = self.config.filter_file_size["min_bytes"]
             max_b = self.config.filter_file_size["max_bytes"]
             if not (min_b <= size <= max_b):
-                structured_log("⏭", "orange", 
-                            f"Skipped {fname}", "\tURL: {url}", "\tReason: {size} bytes not between [{min_b},{max_bytes}] bytes.")
+                structured_log("orange", 
+                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: {size} bytes not between [{min_b},{max_bytes}] bytes.")
                 return
 
         save_path = self.save_dir / fname
         try:
             with save_path.open('wb') as f:
                 f.write(content)
-            structured_log("💾", "green", f"Saved → {save_path} ({size} B)")
+            structured_log("green", f"💾 Saved → {save_path} ({size} B)")
         except Exception as e:
-            print(f"Save failed: {e}", flush=True)
+            structured_log("red", f"❌ Save failed: {e}", flush=True)
 
 addons = [MediaSaver()]
