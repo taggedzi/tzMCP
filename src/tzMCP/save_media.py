@@ -11,6 +11,9 @@ import re
 from io import BytesIO
 import json
 import requests
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
 
 # ---------------------------------------------------------------------------
 # Path & import setup
@@ -83,7 +86,17 @@ def structured_log(color: str, *lines: str):
     # Optionally send directly if GUI is embedded
     if hasattr(ctx, "gui_queue"):
         ctx.gui_queue.put(entry)
-    
+
+class ConfigChangeHandler(FileSystemEventHandler):
+    def __init__(self, path, on_change):
+        self.path = str(path)
+        self.on_change = on_change
+
+    def on_modified(self, event):
+        if event.src_path == self.path:
+            self.on_change()
+
+
 class MediaSaver:
     def __init__(self):
         self.config_manager = ConfigManager()
@@ -108,11 +121,26 @@ class MediaSaver:
             structured_log("red", f"❌ MediaSaver: Failed to reload config: {e}")
 
     def _start_watcher(self):
-        def watch():
-            while True:
-                self._watch_config()
-                time.sleep(2)
-        threading.Thread(target=watch, daemon=True).start()
+        """Start watchdog observer to watch the config file."""
+        if not CONFIG_PATH.exists():
+            ctx.log.error(f"⚠ Cannot watch config; file does not exist: {CONFIG_PATH}")
+            return
+
+        event_handler = ConfigChangeHandler(CONFIG_PATH, self._on_config_change)
+        observer = Observer()
+        observer.schedule(event_handler, str(CONFIG_PATH.parent), recursive=False)
+        observer.daemon = True
+        observer.start()
+        self._observer = observer  # Store if you ever need to stop it
+        
+    def _on_config_change(self):
+        try:
+            self.config = self.config_manager.load_config()
+            ctx.log.info("MediaServer: 🔄 Reloaded config")
+            structured_log("blue", "MediaServer: 🔄 Reloaded config")
+        except Exception as e:
+            ctx.log.error(f"MediaSaver: Failed to reload config: {e}")
+            structured_log("red", f"❌ MediaSaver: Failed to reload config: {e}")
 
     def response(self, flow: http.HTTPFlow):
         url = flow.request.pretty_url
@@ -181,6 +209,6 @@ class MediaSaver:
                 f.write(content)
             structured_log("green", f"💾 Saved → {save_path} ({size} B)")
         except Exception as e:
-            structured_log("red", f"❌ Save failed: {e}", flush=True)
+            structured_log("red", f"❌ Save failed: {e}")
 
 addons = [MediaSaver()]
