@@ -26,14 +26,16 @@ class ConfigTab(ttk.Frame):
         tk.Entry(self, textvariable=self.ext_var).grid(row=1, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
 
         # Whitelist
-        tk.Label(self, text="Whitelist (comma-separated):").grid(row=2, column=0, sticky='w', padx=5, pady=2)
-        self.whitelist_var = tk.StringVar(value=','.join(self.config.whitelist))
-        tk.Entry(self, textvariable=self.whitelist_var).grid(row=2, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        tk.Label(self, text="Whitelist Domains (one per line):").grid(row=2, column=0, sticky='nw', padx=5, pady=2)
+        self.whitelist_box = tk.Text(self, height=4, width=40)
+        self.whitelist_box.grid(row=2, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        self.whitelist_box.insert(tk.END, '\n'.join(self.config.whitelist))
 
         # Blacklist
-        tk.Label(self, text="Blacklist (comma-separated):").grid(row=3, column=0, sticky='w', padx=5, pady=2)
-        self.blacklist_var = tk.StringVar(value=','.join(self.config.blacklist))
-        tk.Entry(self, textvariable=self.blacklist_var).grid(row=3, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        tk.Label(self, text="Blacklist Domains (one per line):").grid(row=3, column=0, sticky='nw', padx=5, pady=2)
+        self.blacklist_box = tk.Text(self, height=4, width=40)
+        self.blacklist_box.grid(row=3, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        self.blacklist_box.insert(tk.END, '\n'.join(self.config.blacklist))
 
         # Pixel Dimensions Filter
         self.pix_filter_var = tk.BooleanVar(value=self.config.filter_pixel_dimensions.get('enabled', False))
@@ -104,8 +106,8 @@ class ConfigTab(ttk.Frame):
             new_cfg = Config(
                 save_dir=Path(self.save_dir_var.get()),
                 extensions=[e.strip() for e in self.ext_var.get().split(',') if e.strip()],
-                whitelist=[e.strip() for e in self.whitelist_var.get().split(',') if e.strip()],
-                blacklist=[e.strip() for e in self.blacklist_var.get().split(',') if e.strip()],
+                whitelist=[line.strip() for line in self.whitelist_box.get("1.0", tk.END).splitlines() if line.strip()],
+                blacklist=[line.strip() for line in self.blacklist_box.get("1.0", tk.END).splitlines() if line.strip()],
                 filter_pixel_dimensions={
                     'enabled': self.pix_filter_var.get(),
                     'min_width': int(self.min_width_var.get()),

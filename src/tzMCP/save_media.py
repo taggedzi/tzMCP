@@ -96,6 +96,9 @@ class ConfigChangeHandler(FileSystemEventHandler):
         if event.src_path == self.path:
             self.on_change()
 
+def domain_matches(domain: str, patterns: list[str]) -> bool:
+    domain = domain.lower()
+    return any(domain == pat or domain.endswith(f".{pat}") for pat in patterns)
 
 class MediaSaver:
     def __init__(self):
@@ -164,16 +167,19 @@ class MediaSaver:
                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: extension {ext} not allowed")
             return
 
-        # Check whitelist
-        if self.config.whitelist and not any(re.search(pat, url) for pat in self.config.whitelist):
-            structured_log("orange", 
-                           f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason not in whitelist.")
-            return
+        # Check domain whitelist
+        if self.config.whitelist:
+            netloc = urlparse(url).hostname or ""
+            if not domain_matches(netloc, self.config.whitelist):
+                structured_log("orange",
+                    f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain not in whitelist.")
+                return
 
-        # Check blacklist
-        if any(re.search(pat, url) for pat in self.config.blacklist):
-            structured_log("orange", 
-                           f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason in blacklist.")
+        # Check domain blacklist
+        netloc = urlparse(url).hostname or ""
+        if domain_matches(netloc, self.config.blacklist):
+            structured_log("orange",
+                f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain in blacklist.")
             return
 
         # Image/video filtering by size/dimensions
@@ -188,11 +194,11 @@ class MediaSaver:
                 if not (self.config.filter_pixel_dimensions["min_width"] <= w <= self.config.filter_pixel_dimensions["max_width"] and
                         self.config.filter_pixel_dimensions["min_height"] <= h <= self.config.filter_pixel_dimensions["max_height"]):
                     structured_log("orange",
-                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: dimensions {w}x{h} outside range.")
+                            f"⏭ Skipped {fname}", f"\tURL: {url}", f"\tReason: dimensions {w}x{h} outside range.")
                     return
             except Exception as e:
                 structured_log("red",
-                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: could not read image size.", "{e}")
+                            f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: could not read image size.", f"{e}")
                 return
 
         if (is_image or is_video) and self.config.filter_file_size.get("enabled"):
@@ -200,7 +206,7 @@ class MediaSaver:
             max_b = self.config.filter_file_size["max_bytes"]
             if not (min_b <= size <= max_b):
                 structured_log("orange", 
-                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: {size} bytes not between [{min_b},{max_bytes}] bytes.")
+                            f"⏭ Skipped {fname}", f"\tURL: {url}", f"\tReason: {size} bytes not between [{min_b},{max_b}] bytes.")
                 return
 
         save_path = self.save_dir / fname

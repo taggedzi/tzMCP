@@ -1,4 +1,4 @@
-save_dir: E:\Home\Documents\Programming\mitmproxy\cache
+save_dir: E:\Home\Documents\Programming\tzMCP\cache
 extensions:
 - .jpg
 - .jpeg
@@ -9,7 +9,9 @@ extensions:
 - .webm
 - .mov
 whitelist: []
-blacklist: []
+blacklist:
+- doubleclick.net
+- lastpass.com
 filter_pixel_dimensions:
   enabled: true
   min_width: 301
