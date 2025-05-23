@@ -19,8 +19,8 @@ filter_pixel_dimensions:
   max_width: 12000
   max_height: 12000
 filter_file_size:
-  enabled: false
-  min_bytes: 1
+  enabled: true
+  min_bytes: 5000
   max_bytes: 157286400
 log_seen_domains: true
 auto_reload_config: true

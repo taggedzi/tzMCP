@@ -66,6 +66,15 @@ class ProxyController:
             cwd=str(script_path.parent),
             env=env, 
         )
+        threading.Thread(target=self._drain_stdout, daemon=True).start()
+
+    def _drain_stdout(self):
+        if not self.process or not self.process.stdout:
+            return
+        
+        for line in self.process.stdout:
+            # mirror everything to the parent shell (optional)
+            print(line, end="")
 
     def stop_proxy(self) -> None:
         """Gracefully terminate the mitmdump subprocess."""

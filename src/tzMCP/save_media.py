@@ -13,6 +13,22 @@ import json
 import requests
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from time import perf_counter
+
+def log_duration(label, start_time):
+    duration = perf_counter() - start_time
+    msg = f"[PROFILE] {label} took {duration:.4f}s"
+    
+    # Console output only for diagnostics
+    print(msg, flush=True)
+    
+    # Optionally push to GUI log as low-priority message (not necessary)
+    if hasattr(ctx, "gui_queue"):
+        ctx.gui_queue.put({
+            "color": "purple",
+            "weight": "normal",
+            "lines": [msg]
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -146,12 +162,15 @@ class MediaSaver:
             structured_log("red", f"❌ MediaSaver: Failed to reload config: {e}")
 
     def response(self, flow: http.HTTPFlow):
+        start_total = perf_counter()
         url = flow.request.pretty_url
         content = flow.response.content
         size = len(content)
         mime = detect_mime(content, flow.response.headers)
 
+        start_ext_check = perf_counter()
         ext = EXT_MAP.get(mime, mimetypes.guess_extension(mime) or ".bin")
+        log_duration("Extension check", start_ext_check)
 
         # Extract filename or generate
         raw_path = urlparse(url).path
@@ -162,51 +181,67 @@ class MediaSaver:
             fname += ext
 
         # Check extension filter
+        start_type_check = perf_counter()
         if self.config.extensions and ext.lower() not in [e.lower() for e in self.config.extensions]:
             structured_log("orange", 
                            f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: extension {ext} not allowed")
             return
+        log_duration("Type check", start_type_check)
+
+        # Check file size filter
+        start_size_check = perf_counter()
+        if self.config.filter_file_size.get("enabled"):
+            min_b = self.config.filter_file_size["min_bytes"]
+            max_b = self.config.filter_file_size["max_bytes"]
+            if not (min_b <= size <= max_b):
+                structured_log("orange", 
+                            f"⏭ Skipped {fname}", f"\tURL: {url}", f"\tReason: {size} bytes not between [{min_b},{max_b}] bytes.")
+                print(f"File size: {size} bytes")
+                return
+        log_duration("File Size Check", start_size_check)
 
         # Check domain whitelist
+        start_whitelist_check = perf_counter()
         if self.config.whitelist:
             netloc = urlparse(url).hostname or ""
             if not domain_matches(netloc, self.config.whitelist):
                 structured_log("orange",
                     f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain not in whitelist.")
                 return
+        log_duration("Whitelist check", start_whitelist_check)
 
         # Check domain blacklist
+        start_blacklist_check = perf_counter()
         netloc = urlparse(url).hostname or ""
         if domain_matches(netloc, self.config.blacklist):
             structured_log("orange",
                 f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain in blacklist.")
             return
+        log_duration("Blacklist check", start_blacklist_check)   
+
 
         # Image/video filtering by size/dimensions
         is_image = mime.startswith("image/")
         is_video = mime.startswith("video/")
 
+        start_image_dimensional_check = perf_counter()
         if is_image and self.config.filter_pixel_dimensions.get("enabled"):
             try:
-                from PIL import Image
+                from PIL import Image, ImageFile
+                ImageFile.LOAD_TRUNCATED_IMAGES = True  # Prevents full decode errors
                 img = Image.open(BytesIO(content))
                 w, h = img.size
                 if not (self.config.filter_pixel_dimensions["min_width"] <= w <= self.config.filter_pixel_dimensions["max_width"] and
                         self.config.filter_pixel_dimensions["min_height"] <= h <= self.config.filter_pixel_dimensions["max_height"]):
                     structured_log("orange",
                             f"⏭ Skipped {fname}", f"\tURL: {url}", f"\tReason: dimensions {w}x{h} outside range.")
+                    print(f"Image dimensions: {w}x{h}")
+                    log_duration("Image Size Check",start_image_dimensional_check)
                     return
+                log_duration("Image Size Check",start_image_dimensional_check)
             except Exception as e:
                 structured_log("red",
                             f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: could not read image size.", f"{e}")
-                return
-
-        if (is_image or is_video) and self.config.filter_file_size.get("enabled"):
-            min_b = self.config.filter_file_size["min_bytes"]
-            max_b = self.config.filter_file_size["max_bytes"]
-            if not (min_b <= size <= max_b):
-                structured_log("orange", 
-                            f"⏭ Skipped {fname}", f"\tURL: {url}", f"\tReason: {size} bytes not between [{min_b},{max_b}] bytes.")
                 return
 
         save_path = self.save_dir / fname
@@ -216,5 +251,6 @@ class MediaSaver:
             structured_log("green", f"💾 Saved → {save_path} ({size} B)")
         except Exception as e:
             structured_log("red", f"❌ Save failed: {e}")
+        log_duration("response()", start_total)
 
 addons = [MediaSaver()]
