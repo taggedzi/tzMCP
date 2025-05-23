@@ -11,9 +11,9 @@ extensions:
 whitelist: []
 blacklist: []
 filter_pixel_dimensions:
-  enabled: false
-  min_width: 1
-  min_height: 1
+  enabled: true
+  min_width: 301
+  min_height: 301
   max_width: 12000
   max_height: 12000
 filter_file_size:

@@ -13,7 +13,7 @@ from io import BytesIO
 # ---------------------------------------------------------------------------
 # Path & import setup
 # ---------------------------------------------------------------------------
-BASE_DIR   = Path(__file__).parent.parent           # project root
+BASE_DIR   = Path(__file__).parent.parent.parent           # project root
 CONFIG_DIR = BASE_DIR / "config"
 CONFIG_PATH = CONFIG_DIR / "media_proxy_config.yaml"
 LOGS_DIR  = BASE_DIR / "logs"
