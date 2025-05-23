@@ -2,12 +2,11 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.scrolledtext import ScrolledText
 import threading, re, time, queue
+import json
+
 
 from tzMCP.proxy_control import ProxyController
 from tzMCP.app_constants import LOG_BUFFER_SIZE, ANSI_PATTERN, ANSI_COLORS
-
-# Only forward lines emitted by our add‑on (green 💾 , red ⏭ , banner)
-FILTER_RE = re.compile(r"(💾|⏭|MediaSaver)")
 
 
 class ProxyTab(ttk.Frame):
@@ -88,23 +87,33 @@ class ProxyTab(ttk.Frame):
     # Helper: insert colourised line, trim buffer
     # ------------------------------------------------------------------
     def _append_line(self, line: str):
-        segments = ANSI_PATTERN.split(line)
-        tags: list[str] = []
-        self.log.config(state="normal")
-        i = 0
-        while i < len(segments):
-            text = segments[i]
-            if text:
-                self.log.insert(tk.END, text, tags)
-            if i + 1 < len(segments):
-                code = segments[i + 1]
-                tags = [ANSI_COLORS[code]] if code in ANSI_COLORS and code != "0" else []
-            i += 2
+        try:
+            msg = json.loads(line)
+            tag = msg.get("tag", "💬")
+            color = msg.get("color", "black")
+            tag_name = f"color_{color}"
+            if tag_name not in self.log.tag_names():
+                self.log.tag_config(tag_name, foreground=color)
 
-        # trim scrollback
-        total_lines = int(self.log.index("end-1c").split(".")[0])
-        if total_lines > LOG_BUFFER_SIZE:
-            self.log.delete("1.0", f"{total_lines - LOG_BUFFER_SIZE}.0")
+            self.log.config(state="normal")
+            for subline in msg["lines"]:
+                self.log.insert(tk.END, subline + "\n", tag_name)
+            self.log.config(state="disabled")
+            self.log.see(tk.END)
 
-        self.log.see(tk.END)
-        self.log.config(state="disabled")
+        except json.JSONDecodeError:
+            # fallback to previous raw handling
+            segments = ANSI_PATTERN.split(line)
+            tags: list[str] = []
+
+            for tag_icon, tag_name in COLOR_TAGS.items():
+                if line.startswith(tag_icon):
+                    tags = [tag_name]
+                    break
+
+            self.log.config(state="normal")
+            for subline in line.strip().splitlines():
+                self.log.insert(tk.END, subline + "\n", tags)
+            self.log.config(state="disabled")
+            self.log.see(tk.END)
+
