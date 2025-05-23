@@ -2,13 +2,13 @@ import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
 
-from tzMCP.config_manager import ConfigManager
-from tzMCP.proxy_control import ProxyController
-from tzMCP.proxy_tab import ProxyTab
-from tzMCP.browser_tab import BrowserTab
-from tzMCP.config_tab import ConfigTab
-from tzMCP.status_bar import StatusBar
-from tzMCP.domain_tab import DomainTab
+from tzMCP.gui_bits.config_manager import ConfigManager
+from tzMCP.gui_bits.proxy_control import ProxyController
+from tzMCP.gui_bits.proxy_tab import ProxyTab
+from tzMCP.gui_bits.browser_tab import BrowserTab
+from tzMCP.gui_bits.config_tab import ConfigTab
+from tzMCP.gui_bits.status_bar import StatusBar
+from tzMCP.gui_bits.domain_tab import DomainTab
 
 
 class MainApp(tk.Tk):

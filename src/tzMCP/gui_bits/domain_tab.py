@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
-from tzMCP.domain_viewer import generate_regex_for_domains
+from tzMCP.gui_bits.domain_viewer import generate_regex_for_domains
 
 # File where seen domains are appended by the proxy
 DOMAINS_FILE = Path(__file__).parent.parent / "logs" / "domains_seen.txt"

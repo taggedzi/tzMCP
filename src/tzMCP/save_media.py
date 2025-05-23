@@ -12,13 +12,9 @@ import requests
 from mitmproxy import http, ctx
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from tzMCP.gui_bits.config_manager import ConfigManager
+import magic
 
-
-try:
-    import magic
-    HAS_MAGIC = True
-except ImportError:
-    HAS_MAGIC = False
 
 # ---------------------------------------------------------------------------
 # Path & import setup
@@ -29,11 +25,7 @@ CONFIG_PATH = CONFIG_DIR / "media_proxy_config.yaml"
 LOGS_DIR  = BASE_DIR / "logs"
 DOMAINS_LOG_PATH = LOGS_DIR / "domains_seen.txt"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
-# Ensure project and scripts dirs on sys.path
-for p in (BASE_DIR, BASE_DIR / "scripts"):
-    if str(p) not in sys.path:
-        sys.path.insert(0, str(p))
-from tzMCP.config_manager import ConfigManager, Config  # after path tweak
+
 
 
 def log_duration(label, start_time):
