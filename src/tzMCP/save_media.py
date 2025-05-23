@@ -1,11 +1,14 @@
-# save_media.py — mitmproxy addon
-from mitmproxy import http, ctx
-import os, re, time, threading, sys
-from pathlib import Path
+import os
+import sys
+import time
+import mimetypes
+import threading
 from urllib.parse import urlparse, unquote
+from mitmproxy import http, ctx
+from pathlib import Path
+import yaml
+import re
 from io import BytesIO
-from PIL import Image, UnidentifiedImageError
-from datetime import datetime
 
 # ---------------------------------------------------------------------------
 # Path & import setup
@@ -24,128 +27,133 @@ for p in (BASE_DIR, BASE_DIR / "scripts"):
 
 from tzMCP.config_manager import ConfigManager, Config  # after path tweak
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+try:
+    import magic
+    HAS_MAGIC = True
+except ImportError:
+    HAS_MAGIC = False
 
-def _load_config() -> Config:
-    return ConfigManager(CONFIG_PATH).load_config()
+EXT_MAP = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/svg+xml": ".svg",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+    "image/x-icon": ".ico",
+    "image/vnd.microsoft.icon": ".ico",
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+}
 
+def detect_mime(content: bytes, headers: dict) -> str:
+    mime = headers.get("content-type", "").lower().split(";")[0].strip()
 
-def _log_skip(reason: str):
-    """Log a red‑colored skip reason in mitmproxy console."""
-    ctx.log.error(f"⏭ {reason}")
-    print(f"⏭ {reason}", flush=True)
+    if not mime and HAS_MAGIC:
+        try:
+            mime = magic.from_buffer(content, mime=True)
+        except Exception:
+            mime = ""
 
+    if not mime or mime == "application/x-empty":
+        if content.startswith(b"RIFF") and b"WEBP" in content[8:16]:
+            mime = "image/webp"
 
+    return mime
 
 class MediaSaver:
-    """Addon that saves responses matching config filters and logs skip reasons."""
-
     def __init__(self):
-        self.config: Config = _load_config()
-        self._compile_filters()
-        ctx.log.info("MediaSaver addon initialized 💡")
-        print("MediaSaver addon initialized 💡", flush=True)
-        if self.config.auto_reload_config:
-            threading.Thread(target=self._watch_config, daemon=True).start()
-
-    # -------------------------------------------------------------------
-    # Config handling
-    # -------------------------------------------------------------------
-    def _watch_config(self):
-        last = CONFIG_PATH.stat().st_mtime if CONFIG_PATH.exists() else None
-        while True:
-            time.sleep(5)
-            if CONFIG_PATH.exists():
-                m = CONFIG_PATH.stat().st_mtime
-                if m != last:
-                    self.config = _load_config()
-                    self._compile_filters()
-                    ctx.log.info("🔄 MediaSaver config reloaded")
-                    print("🔄 MediaSaver config reloaded", flush=True)
-                    last = m
-
-    def _compile_filters(self):
-        # Extension regex (allow query params)
-        exts = [ext.lstrip('.') for ext in self.config.extensions]
-        self.ext_pattern = re.compile(r"\.(" + "|".join(re.escape(e) for e in exts) + r")(?:$|\?)", re.I)
-        # Whitelist/Blacklist
-        wl = [p for p in self.config.whitelist if p.strip()]
-        bl = [p for p in self.config.blacklist if p.strip()]
-        self.whitelist_pattern = re.compile("|".join(wl)) if wl else None
-        self.blacklist_pattern = re.compile("|".join(bl)) if bl else None
-        # Pixel + size
-        pd = self.config.filter_pixel_dimensions
-        self.pixel_enabled = pd.get("enabled", False)
-        self.min_w, self.min_h = pd.get("min_width", 0), pd.get("min_height", 0)
-        self.max_w, self.max_h = pd.get("max_width", 1e9), pd.get("max_height", 1e9)
-        fs = self.config.filter_file_size
-        self.size_enabled = fs.get("enabled", False)
-        self.min_bytes, self.max_bytes = fs.get("min_bytes", 0), fs.get("max_bytes", 1e12)
-        # Save dir
-        self.save_dir = self.config.save_dir
+        self.config_manager = ConfigManager()
+        self.config = self.config_manager.load_config()
+        self.save_dir = Path(self.config.save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
+        
+        if self.config.auto_reload_config:
+            self._start_watcher()
+        
+        self.last_config_time = 0
+        ctx.log.info(f"MediaSaver addon initialized 💡→ {self.save_dir}")
+        print(f"MediaSaver addon initialized 💡→ {self.save_dir}", flush=True)
 
-    # -------------------------------------------------------------------
-    # mitmproxy hooks
-    # -------------------------------------------------------------------
+    def _watch_config(self):
+        try:
+            self.config = self.config_manager.load_config()
+            ctx.log.info("MediaServer: 🔄 Reloaded config")
+            print("MediaServer: 🔄 Reloaded config")
+        except Exception as e:
+            ctx.log.error(f"MediaSaver: Failed to reload config: {e}")
+            print(f"MediaSaver: Failed to reload config: {e}")
+
+    def _start_watcher(self):
+        def watch():
+            while True:
+                self._watch_config()
+                time.sleep(2)
+        threading.Thread(target=watch, daemon=True).start()
+
     def response(self, flow: http.HTTPFlow):
-        url = flow.request.url
-        domain = flow.request.host
+        url = flow.request.pretty_url
         content = flow.response.content
         size = len(content)
+        mime = detect_mime(content, flow.response.headers)
 
-        # 1. Extension filter
-        if not self.ext_pattern.search(url):
-            # Commented out too many files shown that are irrelivant.
-            # _log_skip(f"{url} – extension not allowed")
+        ext = EXT_MAP.get(mime, mimetypes.guess_extension(mime) or ".bin")
+
+        # Extract filename or generate
+        raw_path = urlparse(url).path
+        fname = unquote(os.path.basename(raw_path))
+        if not fname or "." not in fname:
+            fname = f"file_{int(time.time() * 1000)}{ext}"
+        elif not os.path.splitext(fname)[1]:
+            fname += ext
+
+        # Check extension filter
+        if self.config.extensions and ext.lower() not in [e.lower() for e in self.config.extensions]:
+            print(f"⏭ Skipped {fname} \n\tURL: {url}\n\tReason: extension {ext} not allowed", flush=True)
             return
 
-        # 2. Domain filters
-        if self.whitelist_pattern and not self.whitelist_pattern.search(domain):
-            _log_skip(f"{url} – domain not whitelisted")
-            return
-        if self.blacklist_pattern and self.blacklist_pattern.search(domain):
-            _log_skip(f"{url} – domain blacklisted")
+        # Check whitelist
+        if self.config.whitelist and not any(re.search(pat, url) for pat in self.config.whitelist):
+            print(f"⏭ Skipped {fname}\n\tURL: {url}\n\tReason not in whitelist.", flush=True)
             return
 
-        # 3. Size filter
-        if self.size_enabled and not (self.min_bytes <= size <= self.max_bytes):
-            _log_skip(f"{url} – {size}B not in [{self.min_bytes},{self.max_bytes}]")
+        # Check blacklist
+        if any(re.search(pat, url) for pat in self.config.blacklist):
+            print(f"⏭ Skipped {fname}\n\tURL: {url}\n\tReason in blacklist.", flush=True)
             return
 
-        # 4. Pixel filter
-        if self.pixel_enabled:
+        # Image/video filtering by size/dimensions
+        is_image = mime.startswith("image/")
+        is_video = mime.startswith("video/")
+
+        if is_image and self.config.filter_pixel_dimensions.get("enabled"):
             try:
+                from PIL import Image
                 img = Image.open(BytesIO(content))
                 w, h = img.size
-                if not (self.min_w <= w <= self.max_w and self.min_h <= h <= self.max_h):
-                    _log_skip(f"{url} – {w}x{h}px not in range")
+                if not (self.config.filter_pixel_dimensions["min_width"] <= w <= self.config.filter_pixel_dimensions["max_width"] and
+                        self.config.filter_pixel_dimensions["min_height"] <= h <= self.config.filter_pixel_dimensions["max_height"]):
+                    print(f"⏭ Skipped {fname}\n\tURL: {url}\n\tReason: dimensions {w}x{h} outside range", flush=True)
                     return
-            except UnidentifiedImageError:
-                _log_skip(f"{url} – not an image for pixel check")
+            except Exception as e:
+                print(f"⏭ Skipped {fname}\n\tURL: {url}\n\tReason: could not read image size\n{e}", flush=True)
                 return
 
-        # 5. Save file
-        self.save_dir.mkdir(parents=True, exist_ok=True)
-        parsed_path = urlparse(url).path
-        fname = unquote(os.path.basename(parsed_path)) or f"untitled_{int(time.time() * 1000)}"
+        if (is_image or is_video) and self.config.filter_file_size.get("enabled"):
+            min_b = self.config.filter_file_size["min_bytes"]
+            max_b = self.config.filter_file_size["max_bytes"]
+            if not (min_b <= size <= max_b):
+                print(f"⏭ Skipped {fname}\n\tURL: {url}\n\tReason: {size} bytes not between [{byte_cfg['min_bytes']},{byte_cfg['max_bytes']}]) bytes", flush=True)
+                return
+
         save_path = self.save_dir / fname
         try:
             with save_path.open('wb') as f:
                 f.write(content)
-            ctx.log.info(f"💾 Saved → {save_path} ({size}B)")
             print(f"💾 Saved → {save_path} ({size}B)", flush=True)
         except Exception as e:
-            ctx.log.error(f"Saved failed: {e}")
             print(f"Save failed: {e}", flush=True)
-            return
-
-        # 6. Log domain
-        if self.config.log_seen_domains:
-            with DOMAINS_LOG_PATH.open("a", encoding="utf-8") as domf:
-                domf.write(domain + "\n")
-
 
 addons = [MediaSaver()]

@@ -12,6 +12,7 @@ whitelist: []
 blacklist:
 - ads\..*
 - .*\.doubleclick\.net
+- .*lastpass\.com
 filter_pixel_dimensions:
   enabled: false
   min_width: 301
