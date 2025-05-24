@@ -110,8 +110,8 @@ def is_file_size_out_of_bounds(size:int, fname:str = None):
         min_b = config.filter_file_size["min_bytes"]
         max_b = config.filter_file_size["max_bytes"]
         if not min_b <= size <= max_b:
-            # log("warn", "orange",
-            #     f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
+            log("warn", "orange",
+                f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
             response = True
     log_duration("is_file_size_out_of_bounds() ", start_is_domain_blocked_by_whitelist_check)
     return response
