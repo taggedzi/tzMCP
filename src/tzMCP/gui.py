@@ -41,10 +41,25 @@ class MainApp(tk.Tk):
         # ensure we intercept window-close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+    def _on_tab_change(self, event):
+        selected = event.widget.select()
+        selected_tab = event.widget.nametowidget(selected)
+        if isinstance(selected_tab, ConfigTab):
+            try:
+                new_config = self.config_manager.load_config()
+                selected_tab.reload_config(new_config)
+                self.config = new_config
+            except Exception as e:
+                from tkinter import messagebox
+                messagebox.showerror("Error", f"Failed to reload config: {e}")
+
     def build_ui(self):
         # Notebook for tabs
         notebook = ttk.Notebook(self)
         notebook.pack(fill='both', expand=True)
+        
+        # Bind tab change event
+        notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
 
         # Proxy Control tab
         status = StatusBar(self)

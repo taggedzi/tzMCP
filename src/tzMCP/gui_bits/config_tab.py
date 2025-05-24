@@ -88,6 +88,36 @@ class ConfigTab(ttk.Frame):
         if path:
             self.save_dir_var.set(path)
 
+    def reload_config(self, config: Config):
+        """Reload config values into the GUI fields."""
+        self.config = config
+        self.save_dir_var.set(str(config.save_dir))
+
+        # MIME groups
+        for group, var in self.mime_group_vars.items():
+            var.set(group in config.allowed_mime_groups)
+
+        # Whitelist/Blacklist
+        self.whitelist_box.delete("1.0", tk.END)
+        self.whitelist_box.insert(tk.END, "\n".join(config.whitelist))
+        self.blacklist_box.delete("1.0", tk.END)
+        self.blacklist_box.insert(tk.END, "\n".join(config.blacklist))
+
+        # File Size
+        self.min_bytes.set(config.filter_file_size.get("min_bytes", 1))
+        self.max_bytes.set(config.filter_file_size.get("max_bytes", 157286400))
+
+        # Pixels
+        self.min_width.set(config.filter_pixel_dimensions.get("min_width", 1))
+        self.min_height.set(config.filter_pixel_dimensions.get("min_height", 1))
+        self.max_width.set(config.filter_pixel_dimensions.get("max_width", 12000))
+        self.max_height.set(config.filter_pixel_dimensions.get("max_height", 12000))
+
+        # Flags
+        self.log_internal_debug.set(config.log_internal_debug)
+        self.log_seen_domains.set(config.log_seen_domains)
+        self.auto_reload_config.set(config.auto_reload_config)
+
     def _save(self):
         try:
             selected_mime_groups = [group for group, var in self.mime_group_vars.items() if var.get()]
