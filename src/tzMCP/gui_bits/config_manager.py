@@ -48,6 +48,32 @@ class ConfigManager:
         # Initialize default config
         self.config = Config()
 
+    def _validate_config(self, config: Config) -> Config:
+        # Ensure save_dir is absolute and writable
+        if not config.save_dir.is_absolute():
+            config.save_dir = config.save_dir.resolve()
+        try:
+            config.save_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            raise ValueError(f"Invalid save_dir: {config.save_dir} ({e})")
+
+        # Validate MIME groups
+        config.allowed_mime_groups = [g for g in config.allowed_mime_groups if g in MIME_GROUPS]
+
+        # Check file size bounds
+        ffs = config.filter_file_size
+        ffs["min_bytes"] = max(0, ffs.get("min_bytes", 0))
+        ffs["max_bytes"] = max(ffs["min_bytes"], ffs.get("max_bytes", 1))
+
+        # Check pixel dimension bounds
+        fpd = config.filter_pixel_dimensions
+        for key in ["min_width", "min_height", "max_width", "max_height"]:
+            fpd[key] = max(0, fpd.get(key, 0))
+        fpd["max_width"] = max(fpd["min_width"], fpd["max_width"])
+        fpd["max_height"] = max(fpd["min_height"], fpd["max_height"])
+
+        return config
+
     def load_config(self) -> Config:
         """Load configuration from YAML file, overriding defaults if present."""
         if self.config_path.exists():
@@ -71,11 +97,13 @@ class ConfigManager:
                 self.config.log_seen_domains = bool(raw["log_seen_domains"])
             if "auto_reload_config" in raw:
                 self.config.auto_reload_config = bool(raw["auto_reload_config"])
+        self.config = self._validate_config(self.config)
         return self.config
 
     def save_config(self, config: Config = None) -> None:
         """Save the Config object to YAML file, creating parent dirs if necessary."""
         cfg = config or self.config
+        self._validate_config(cfg)
         data = asdict(cfg)
         data["save_dir"] = str(cfg.save_dir)
         # Ensure directory exists

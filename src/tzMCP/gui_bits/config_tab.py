@@ -114,8 +114,14 @@ class ConfigTab(ttk.Frame):
                 log_seen_domains=self.log_seen_domains.get(),
                 auto_reload_config=self.auto_reload_config.get()
             )
+
+            # 🧠 Validate before saving
+            self.config_manager._validate_config(new_cfg)
+
             self.config_manager.save_config(new_cfg)
             messagebox.showinfo("Success", "Configuration saved successfully.")
             self.config = new_cfg
+
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save config: {e}")
+
