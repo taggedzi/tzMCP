@@ -58,7 +58,12 @@ class ConfigManager:
             raise ValueError(f"Invalid save_dir: {config.save_dir} ({e})")
 
         # Validate MIME groups
-        config.allowed_mime_groups = [g for g in config.allowed_mime_groups if g in MIME_GROUPS]
+        before = set(config.allowed_mime_groups)
+        config.allowed_mime_groups = [g for g in before if g in MIME_GROUPS]
+        dropped = before - set(config.allowed_mime_groups)
+        if dropped:
+            print(f"[WARNING] Ignored invalid MIME groups in config: {', '.join(sorted(dropped))}")
+
 
         # Check file size bounds
         ffs = config.filter_file_size
