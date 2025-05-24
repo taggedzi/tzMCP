@@ -18,9 +18,10 @@ from tzMCP.save_media_utils.save_media_utils import (
 class ConfigChangeHandler(FileSystemEventHandler):
     def __init__(self, callback):
         self.callback = callback
-
-    def on_modified(self, event):
-        if not event.is_directory:
+        
+    def on_any_event(self, event):
+        # print(f"[watchdog] Event: {event.event_type} → {event.src_path}")
+        if not event.is_directory and event.src_path.endswith("media_proxy_config.yaml"):
             self.callback()
 
 class MediaSaver:
@@ -59,15 +60,13 @@ class MediaSaver:
             ctx.log.error(f"⚠ Cannot watch config; file does not exist: {self.config_path}")
             log("error", "red", f"⚠ Cannot watch config; file does not exist: {self.config_path}")
             return
-        
         try:
             event_handler = ConfigChangeHandler(self._on_config_change)
             observer = Observer()
-            observer.schedule(event_handler, str(self.config_path), recursive=False)
+            observer.schedule(event_handler, str(self.config_path.parent), recursive=False)
             observer.daemon = True
             observer.start()
             self._observer = observer  # Store if you ever need to stop it
-
         except Exception as e:
             ctx.log.error(f"⚠ Failed to start config watcher: {e}")
             log("error", "red", f"Failed to start config watcher: {e}")
