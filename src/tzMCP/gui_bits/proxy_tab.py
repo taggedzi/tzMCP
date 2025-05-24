@@ -7,17 +7,16 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 
 class ProxyTab(ttk.Frame):
-    def __init__(self, master, proxy_controller, status_bar):
+    def __init__(self, master, proxy_controller, status_bar, gui_queue):
         super().__init__(master)
         self.proxy_controller = proxy_controller
         self.status_bar = status_bar
 
-        self.gui_queue = queue.Queue()
+        self.gui_queue = gui_queue
         self.proxy_controller.gui_queue = self.gui_queue
 
         self._build_widgets()
         self._start_log_drain_thread()
-        self._start_log_server()
 
     def _build_widgets(self):
         self.start_btn = ttk.Button(self, text="Start", command=self._start)
@@ -83,25 +82,3 @@ class ProxyTab(ttk.Frame):
             self.log.insert(tk.END, line + "\n", color)
         self.log.see(tk.END)
         self.log.config(state='disabled')
-
-    def _start_log_server(self):
-        class LogRequestHandler(BaseHTTPRequestHandler):
-            def log_message(self, format, *args):
-                pass  # Suppress logging
-            
-            def do_POST(inner_self):
-                content_len = int(inner_self.headers['Content-Length'])
-                body = inner_self.rfile.read(content_len)
-                try:
-                    data = json.loads(body)
-                    self.gui_queue.put(data)
-                    inner_self.send_response(200)
-                except Exception:
-                    inner_self.send_response(400)
-                inner_self.end_headers()
-
-        def run_server():
-            server = HTTPServer(('localhost', 5001), LogRequestHandler)
-            server.serve_forever()
-
-        threading.Thread(target=run_server, daemon=True).start()

@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
+import queue
 from tzMCP.save_media_utils.save_media_utils import log
 from tzMCP.gui_bits.config_manager import ConfigManager
 from tzMCP.gui_bits.proxy_control import ProxyController
@@ -9,7 +10,7 @@ from tzMCP.gui_bits.browser_tab import BrowserTab
 from tzMCP.gui_bits.config_tab import ConfigTab
 from tzMCP.gui_bits.status_bar import StatusBar
 from tzMCP.gui_bits.domain_tab import DomainTab
-
+from tzMCP.gui_bits.log_server import start_gui_log_server
 
 class MainApp(tk.Tk):
     """Main application window, orchestrating all tabs and status bar."""
@@ -31,7 +32,11 @@ class MainApp(tk.Tk):
             proxy_executable_path=str(Path(__file__).parent / "save_media.py"),
             proxy_port=8080
         )
-
+        
+        # Setup the GUI http logging server
+        self.gui_queue = queue.Queue()
+        start_gui_log_server(self.gui_queue)
+        
         self.build_ui()
         # ensure we intercept window-close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -45,7 +50,7 @@ class MainApp(tk.Tk):
         status = StatusBar(self)
         status.pack(side='bottom', fill='x')
 
-        self.proxy_tab = ProxyTab(notebook, self.proxy_controller, status)
+        self.proxy_tab = ProxyTab(notebook, self.proxy_controller, status, self.gui_queue)
         notebook.add(self.proxy_tab, text="Proxy Control")
 
         # Browser Launch tab
