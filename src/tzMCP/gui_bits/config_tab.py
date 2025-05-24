@@ -1,9 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-
 from tzMCP.gui_bits.config_manager import ConfigManager, Config, MIME_GROUPS
-
 
 class ConfigTab(ttk.Frame):
     """Config tab for the GUI."""

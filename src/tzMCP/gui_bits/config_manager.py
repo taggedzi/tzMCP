@@ -38,6 +38,7 @@ class Config:
 class ConfigManager:
     def __init__(self, config_path: Optional[Path] = None):
         """Initialize with optional config_path; defaults to project/config/media_proxy_config.yaml."""
+        self._log_fn = None  # Optional Logging hook
         # Determine config path
         if config_path is None:
             base = Path(__file__).parent.parent.parent.parent
@@ -47,6 +48,10 @@ class ConfigManager:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         # Initialize default config
         self.config = Config()
+
+    def set_logger(self, log_fn):
+        """Optional: set a logger function for GUI/system logs."""
+        self._log_fn = log_fn
 
     def _validate_config(self, config: Config) -> Config:
         # Ensure save_dir is absolute and writable
@@ -62,8 +67,10 @@ class ConfigManager:
         config.allowed_mime_groups = [g for g in before if g in MIME_GROUPS]
         dropped = before - set(config.allowed_mime_groups)
         if dropped:
-            print(f"[WARNING] Ignored invalid MIME groups in config: {', '.join(sorted(dropped))}")
-
+            msg = f"Ignored invalid MIME groups in config: {', '.join(sorted(dropped))}"
+            print(f"[WARNING] {msg}")
+            if self._log_fn:
+                self._log_fn("warn", "orange", msg)
 
         # Check file size bounds
         ffs = config.filter_file_size

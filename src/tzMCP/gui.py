@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
-
+from tzMCP.save_media_utils.save_media_utils import log
 from tzMCP.gui_bits.config_manager import ConfigManager
 from tzMCP.gui_bits.proxy_control import ProxyController
 from tzMCP.gui_bits.proxy_tab import ProxyTab
@@ -53,6 +53,7 @@ class MainApp(tk.Tk):
         notebook.add(browser_tab, text="Browser Launch")
 
         # Configuration tab
+        self.config_manager.set_logger(log)
         config_tab = ConfigTab(notebook, self.config_manager, self.config)
         notebook.add(config_tab, text="Configuration")
 
