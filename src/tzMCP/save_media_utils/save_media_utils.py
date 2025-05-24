@@ -1,12 +1,15 @@
 from io import BytesIO
+from pathlib import Path
 import hashlib
-import re
-import os
-import time
 import json
+import os
+import re
+import time
+import yaml
+from PIL import Image
 import requests
 import magic
-from PIL import Image
+from tzMCP.save_media_utils.config_provider import get_config
 
 # ----------------------------------
 # Utility functions
@@ -22,19 +25,26 @@ def send_log_to_gui(entry):
     except requests.exceptions.RequestException:
         pass
 
-def structured_log(color: str, *lines: str):
+def log(level: str, color: str, *lines: str):
+    config = get_config()
+    if config is None or not config.log_internal_debug:
+        raise ValueError("Config not found")
+    level = level.lower()
+    
+    # only skip if it is a debug messsage and debug messages are not wanted.
+    if level == "debug" and not config.log_internal_debug:
+        return
+    
+    # Print to console
+    print("\n".join(list(lines)), flush=True)
+    
+    # Send to GUI
     entry = {
         "color": color,
         "weight": "bold",
         "lines": list(lines)
     }
-    if not _config.get("suppress_diagnostics"):
-        print(json.dumps(entry), flush=True)
-        send_log_to_gui(entry)
-
-def structured_debug(msg: str):
-    if _config.get("debug", False):
-        print(f"[DEBUG] {msg}", flush=True)
+    send_log_to_gui(entry)
 
 def sanitize_filename(filename: str, fallback_url: str = "") -> str:
     name = re.sub(r"[^\w\-_. ]", "_", filename)
@@ -69,5 +79,3 @@ def detect_mime(data: bytes) -> str:
 
 def domain_matches(url: str, domain_list: list[str]) -> bool:
     return any(domain in url for domain in domain_list)
-
-_config = {}

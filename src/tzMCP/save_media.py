@@ -1,282 +1,228 @@
-import mimetypes
-import hashlib
+from mimetypes import guess_extension
 import os
-import re
-import sys
-import time
 from io import BytesIO
 from pathlib import Path
 from time import perf_counter
-from urllib.parse import urlparse, unquote
-import requests
+from urllib.parse import urlparse
+from PIL import Image
 from mitmproxy import http, ctx
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from tzMCP.gui_bits.config_manager import ConfigManager
-import magic
+from tzMCP.gui_bits.config_manager import ConfigManager, Config
+from tzMCP.save_media_utils import config_provider
+from tzMCP.save_media_utils.config_provider import get_config
+from tzMCP.save_media_utils.save_media_utils import (
+    log_duration, safe_filename, detect_mime, log
+)
 
-
-# ---------------------------------------------------------------------------
-# Path & import setup
-# ---------------------------------------------------------------------------
-BASE_DIR   = Path(__file__).parent.parent.parent           # project root
-CONFIG_DIR = BASE_DIR / "config"
-CONFIG_PATH = CONFIG_DIR / "media_proxy_config.yaml"
-LOGS_DIR  = BASE_DIR / "logs"
-DOMAINS_LOG_PATH = LOGS_DIR / "domains_seen.txt"
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
-
-
-def log_duration(label, start_time):
-    duration = perf_counter() - start_time
-    msg = f"[PROFILE] {label} took {duration:.4f}s"
-
-    # Console output only for diagnostics
-    print(msg, flush=True)
-
-    # Optionally push to GUI log as low-priority message (not necessary)
-    if hasattr(ctx, "gui_queue"):
-        ctx.gui_queue.put({
-            "color": "purple",
-            "weight": "normal",
-            "lines": [msg]
-        })
-
-EXT_MAP = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-    "image/svg+xml": ".svg",
-    "image/bmp": ".bmp",
-    "image/tiff": ".tiff",
-    "image/x-icon": ".ico",
-    "image/vnd.microsoft.icon": ".ico",
-    "video/mp4": ".mp4",
-    "video/webm": ".webm",
-    "video/quicktime": ".mov",
-}
-
-def detect_mime(content: bytes, headers: dict) -> str:
-    mime = headers.get("content-type", "").lower().split(";")[0].strip()
-
-    if not mime and HAS_MAGIC:
-        try:
-            mime = magic.from_buffer(content, mime=True)
-        except Exception:
-            mime = ""
-
-    if not mime or mime == "application/x-empty":
-        if content.startswith(b"RIFF") and b"WEBP" in content[8:16]:
-            mime = "image/webp"
-
-    return mime
-
-def send_log_to_gui(data: dict):
-    try:
-        requests.post("http://localhost:5001", json=data, timeout=0.5)
-    except requests.exceptions.RequestException:
-        pass
-
-def structured_log(color: str, *lines: str):
-    entry = {
-        "color": color,
-        "weight": "bold",
-        "lines": list(lines)
-    }
-    # Send to external GUI log server
-    send_log_to_gui(entry)
-    
-    # Optionally send directly if GUI is embedded
-    if hasattr(ctx, "gui_queue"):
-        ctx.gui_queue.put(entry)
-
-def structured_debug(color: str, *lines: str):
-    entry = {
-        "color": f"{color}",
-        "weight": "italics",
-        "lines": list(lines)
-    }
-    # Send to external GUI log server
-    send_log_to_gui(entry)
-    
-    # Optionally send directly if GUI is embedded
-    if hasattr(ctx, "gui_queue"):
-        ctx.gui_queue.put(entry)
+ENABLE_PERFORMANCE_CHECK = True
 
 class ConfigChangeHandler(FileSystemEventHandler):
-    def __init__(self, path, on_change):
-        self.path = str(path)
-        self.on_change = on_change
+    def __init__(self, callback):
+        self.callback = callback
 
     def on_modified(self, event):
-        if event.src_path == self.path:
-            self.on_change()
+        if not event.is_directory:
+            self.callback()
 
-def domain_matches(domain: str, patterns: list[str]) -> bool:
-    domain = domain.lower()
-    return any(domain == pat or domain.endswith(f".{pat}") for pat in patterns)
+def is_extension_blocked(ext:str = None, fname:str = None):
+    """Test Extensions against config file requested extensions"""
+    start_ext_check = perf_counter()
+    response = False
+    allowed_exts = set(e.lower() for e in get_config().extensions)
+    if ext.lower() not in allowed_exts:
+        ctx.log.info(f"Skipping file with extension {ext.lower()} because it is not in the config's extensions list.")
+        log("warn", "orange", f"⏭ Skipped file {fname}", f"\tReason: {ext.lower()} is not in the config's extensions list.")
+        response = True
+    if ENABLE_PERFORMANCE_CHECK:
+        log_duration("File Extension Check", start_ext_check)
+    return response
+
+def is_file_size_out_of_bounds(size:int, fname:str = None):
+    """Test Size against config file requested size"""
+    start_size_check = perf_counter()
+    response = False
+    config = get_config()
+    if config.filter_file_size.get("enabled"):
+        min_b = config.filter_file_size["min_bytes"]
+        max_b = config.filter_file_size["max_bytes"]
+        if not min_b <= size <= max_b:
+            log("warn", "orange",
+                f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
+            response = True
+    if ENABLE_PERFORMANCE_CHECK:
+        log_duration("File Size Check", start_size_check)
+    return response
+
+def is_domain_blocked_by_whitelist(url:str, fname:str = None):
+    """
+    Check domain whitelist 
+    IF whitelist is NOT set (ie []), then allow all domains
+    IF whitelist is set, then only allow domains that are in the list
+    """
+    start_whitelist_check = perf_counter()
+    response = False
+    config = get_config()
+    if config.whitelist:
+        netloc = urlparse(url).hostname or ""
+        if not any(domain in netloc for domain in config.whitelist):
+            log("warn", "orange",
+                f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain not in whitelist.")
+            response = True
+    if ENABLE_PERFORMANCE_CHECK:
+        log_duration("Whitelist check", start_whitelist_check)
+    return response
+
+def is_domain_blacklisted(url:str, fname:str = None):
+    """
+    Check domain blacklist 
+    IF blacklist is NOT set (ie []), then allow all domains
+    IF blacklist is set, then only allow domains that are not in the list
+    """
+    start_blacklist_check = perf_counter()
+    response = False
+    config = get_config()
+    if config.blacklist:
+        netloc = urlparse(url).hostname or ""
+        if any(domain in netloc for domain in config.blacklist):
+            log("warn", "orange",
+                f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain in blacklist.")
+            response = True
+    if ENABLE_PERFORMANCE_CHECK:
+        log_duration("Blacklist check", start_blacklist_check)
+    return response
 
 
-# ---------------------------------------------------------------------------
-# File name sanitation
-# ---------------------------------------------------------------------------
-WINDOWS_RESERVED_NAMES = {
-    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
-    "COM5", "COM6", "COM7", "COM8", "COM9",
-    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
-}
-def sanitize_filename(filename: str, fallback_url: str = "") -> str:
-    name = re.sub(r"[^\w\-_. ]", "_", filename)      # Replace unsafe chars
-    name = re.sub(r"\s+", "_", name.strip())         # Normalize whitespace
-    name = name[:255]                                # Truncate long names
-    if not name or name.upper() in WINDOWS_RESERVED_NAMES:
-        hash_val = hashlib.sha256(fallback_url.encode()).hexdigest()[:12]
-        name = f"file_{hash_val}"
+def is_valid_image(content: bytes):
+    try:
+        img = Image.open(BytesIO(content))
+        img.verify()  # Verify header-only, no full decode
+        return True
+    except Exception:
+        return False
 
-    return name
-def safe_filename(raw_name: str, ext: str, fallback_url: str = "") -> str:
-    if not raw_name or "." not in raw_name:
-        raw_name = f"file_{int(time.time() * 1000)}{ext}"
-    elif not os.path.splitext(raw_name)[1]:
-        raw_name += ext
-    return sanitize_filename(raw_name, fallback_url)
+def is_image_size_out_of_bounds(content: bytes, fname: str = None):
+    start_image_pixel_dimension_check = perf_counter()
+    response = False
+    config = get_config()
+    if config.filter_pixel_dimensions:
+        try:
+            img = Image.open(BytesIO(content))
+            w, h = img.size
+            min_w = config.filter_pixel_dimensions.get("min_width", 1)
+            max_w = config.filter_pixel_dimensions.get("max_width", 999999)
+            min_h = config.filter_pixel_dimensions.get("min_height", 1)
+            max_h = config.filter_pixel_dimensions.get("max_height", 999999)
+            if w < min_w or w > max_w or h < min_h or h > max_h:
+                log("warn", "orange", f"⏭ Skipped file {fname}", f"Reason: ({w}x{h} not in allowed ranges)")
+                response = True
+        except Exception as e:
+            log("error", "red", f"⛔ Pixel check failed: {e}")
+        if ENABLE_PERFORMANCE_CHECK:
+            log_duration("Image Size Check", start_image_pixel_dimension_check)
+        return response
 
 
 class MediaSaver:
     def __init__(self):
-        self.config_manager = ConfigManager()
-        self.config = self.config_manager.load_config()
-        self.save_dir = Path(self.config.save_dir)
-        self.save_dir.mkdir(parents=True, exist_ok=True)
+        # Setup Pathing
+        self.project_root = Path(__file__).parent.parent.parent
+        self.config_path = self.project_root / "config" / "media_proxy_config.yaml"
+        self.log_path = self.project_root / "logs" / "domains_seen.txt"
         
-        if self.config.auto_reload_config:
-            self._start_watcher()
+        # Setup Config Manager
+        self.cfg_manager = ConfigManager(self.config_path)
+        self.config = Config()   # Start with empty config
+        self._observer = None
+        self._load_config()      # Load the config file and share with other files in real time.
+        self._start_watcher()    # Setup Watchdog to monitor the config file for updates.
         
-        self.last_config_time = 0
-        ctx.log.info(f"MediaSaver addon initialized 💡→ {self.save_dir}")
-        structured_log("black", f"📂 MediaSaver addon initialized 💡→ {self.save_dir}")
+        ctx.log.info(f"MediaSaver addon initialized → {self.config.save_dir}")
+        log("info", "black", f"MediaSaver addon initialized → {self.config.save_dir}")
 
-    def _watch_config(self):
+    def _load_config(self):
         try:
-            self.config = self.config_manager.load_config()
+            self.config: Config = self.cfg_manager.load_config()  # Load config from file and store locally
+            config_provider.set_config(self.config)       # Share with other files in real time.
+            
             ctx.log.info("MediaServer: 🔄 Reloaded config")
-            structured_log("blue", "MediaServer: 🔄 Reloaded config")
+            log("info", "blue", "MediaServer: 🔄 Reloaded config")
         except Exception as e:
-            ctx.log.error(f"MediaSaver: Failed to reload config: {e}")
-            structured_log("red", f"❌ MediaSaver: Failed to reload config: {e}")
+            
+            ctx.log.error(f"Failed to load config: {e}")
+            log("error", "red", f"Failed to load config: {e}")
+            config_provider.set_config({})
 
     def _start_watcher(self):
         """Start watchdog observer to watch the config file."""
-        if not CONFIG_PATH.exists():
-            ctx.log.error(f"⚠ Cannot watch config; file does not exist: {CONFIG_PATH}")
-            structured_log("red", f"⚠ Cannot watch config; file does not exist: {CONFIG_PATH}")
+        if not self.config_path.exists():
+            ctx.log.error(f"⚠ Cannot watch config; file does not exist: {self.config_path}")
+            log("error", "red", f"⚠ Cannot watch config; file does not exist: {self.config_path}")
             return
-
-        event_handler = ConfigChangeHandler(CONFIG_PATH, self._on_config_change)
-        observer = Observer()
-        observer.schedule(event_handler, str(CONFIG_PATH.parent), recursive=False)
-        observer.daemon = True
-        observer.start()
-        self._observer = observer  # Store if you ever need to stop it
         
-    def _on_config_change(self):
         try:
-            self.config = self.config_manager.load_config()
-            ctx.log.info("MediaServer: 🔄 Reloaded config")
-            structured_log("blue", "MediaServer: 🔄 Reloaded config")
+            event_handler = ConfigChangeHandler(self._on_config_change)
+            observer = Observer()
+            observer.schedule(event_handler, str(self.config_path), recursive=False)
+            observer.daemon = True
+            observer.start()
+            self._observer = observer  # Store if you ever need to stop it
+
         except Exception as e:
-            ctx.log.error(f"MediaSaver: Failed to reload config: {e}")
-            structured_log("red", f"❌ MediaSaver: Failed to reload config: {e}")
+            ctx.log.error(f"⚠ Failed to start config watcher: {e}")
+            log("error", "red", f"Failed to start config watcher: {e}")
+
+    def _on_config_change(self):
+        self._load_config()
+        ctx.log.info("🔄 Config reloaded via watcher.")
+        log("info", "blue", "🔄 Config reloaded via watcher.")
+
+    def done(self):
+        """Called when mitmproxy shuts down."""
+        if hasattr(self, "_observer") and self._observer:
+            self._observer.stop()
+            self._observer.join()
+            ctx.log.info("🛑 Config watcher stopped cleanly.")
+            log("info", "blue", "🛑 Config watcher stopped cleanly.")
 
     def response(self, flow: http.HTTPFlow):
         start_total = perf_counter()
-        url = flow.request.pretty_url
         content = flow.response.content
+        url = flow.request.pretty_url
         size = len(content)
-        mime = detect_mime(content, flow.response.headers)
 
-        start_ext_check = perf_counter()
-        ext = EXT_MAP.get(mime, mimetypes.guess_extension(mime) or ".bin")
-        log_duration("Extension check", start_ext_check)
+        clean_url = url.split("?", 1)[0]
+        basename = os.path.basename(clean_url)
+        ext = os.path.splitext(basename)[1] or guess_extension(flow.response.headers.get("content-type", "").split(";")[0]) or ".bin"
+        fname = safe_filename(basename, ext, fallback_url=url)
+        mime_type = detect_mime(content)
+        log('info', "green", f"{fname}{ext} -> {mime_type}, {size} bytes")
 
-        # Extract filename or generate
-        raw_fname = unquote(os.path.basename(urlparse(url).path))
-        fname = safe_filename(raw_fname, ext, url)
-        structured_debug("purple", f"[SANITIZED] {raw_fname} → {fname}")
-
-        # Check extension filter
-        start_type_check = perf_counter()
-        if self.config.extensions and ext.lower() not in [e.lower() for e in self.config.extensions]:
-            structured_log("orange", 
-                           f"⏭ Skipped {fname}", "\tURL: {url}", "\tReason: extension {ext} not allowed")
+        # Test Extensions against config file requested extensions
+        if is_extension_blocked(ext, fname):
             return
-        log_duration("Type check", start_type_check)
-
-        # Check file size filter
-        start_size_check = perf_counter()
-        if self.config.filter_file_size.get("enabled"):
-            min_b = self.config.filter_file_size["min_bytes"]
-            max_b = self.config.filter_file_size["max_bytes"]
-            if not (min_b <= size <= max_b):
-                structured_log("orange", 
-                            f"⏭ Skipped {fname}", f"\tURL: {url}", f"\tReason: {size} bytes not between [{min_b},{max_b}] bytes.")
-                print(f"File size: {size} bytes")
-                return
-        log_duration("File Size Check", start_size_check)
-
-        # Check domain whitelist
-        start_whitelist_check = perf_counter()
-        if self.config.whitelist:
-            netloc = urlparse(url).hostname or ""
-            if not domain_matches(netloc, self.config.whitelist):
-                structured_log("orange",
-                    f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain not in whitelist.")
-                return
-        log_duration("Whitelist check", start_whitelist_check)
-
-        # Check domain blacklist
-        start_blacklist_check = perf_counter()
-        netloc = urlparse(url).hostname or ""
-        if domain_matches(netloc, self.config.blacklist):
-            structured_log("orange",
-                f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain in blacklist.")
+        
+        if is_file_size_out_of_bounds(size, fname):
             return
-        log_duration("Blacklist check", start_blacklist_check)   
+
+        if is_domain_blocked_by_whitelist(url, fname):
+            return
+
+        if is_domain_blacklisted(url, fname):
+            return
+
+        if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
+            return
 
 
-        # Image/video filtering by size/dimensions
-        is_image = mime.startswith("image/")
-        is_video = mime.startswith("video/")
 
-        start_image_dimensional_check = perf_counter()
-        if is_image and self.config.filter_pixel_dimensions.get("enabled"):
-            try:
-                from PIL import Image, ImageFile
-                ImageFile.LOAD_TRUNCATED_IMAGES = True  # Prevents full decode errors
-                img = Image.open(BytesIO(content))
-                w, h = img.size
-                if not (self.config.filter_pixel_dimensions["min_width"] <= w <= self.config.filter_pixel_dimensions["max_width"] and
-                        self.config.filter_pixel_dimensions["min_height"] <= h <= self.config.filter_pixel_dimensions["max_height"]):
-                    structured_log("orange",
-                            f"⏭ Skipped {fname}", f"\tURL: {url}", f"\tReason: dimensions {w}x{h} outside range.")
-                    print(f"Image dimensions: {w}x{h}")
-                    log_duration("Image Size Check",start_image_dimensional_check)
-                    return
-                log_duration("Image Size Check",start_image_dimensional_check)
-            except Exception as e:
-                structured_log("red",
-                            f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: could not read image size.", f"{e}")
-                return
-
-        save_path = self.save_dir / fname
+        save_path = self.config.save_dir / fname
         try:
             with save_path.open('wb') as f:
                 f.write(content)
-            structured_log("green", f"💾 Saved → {save_path} ({size} B)")
+            log("info", "green", f"💾 Saved → {save_path} ({size} B)")
         except Exception as e:
-            structured_log("red", f"❌ Save failed: {e}")
+            log("error", "red", f"❌ Save failed: {e}")
         log_duration("response()", start_total)
 
 addons = [MediaSaver()]
