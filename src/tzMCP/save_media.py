@@ -11,9 +11,8 @@ from tzMCP.save_media_utils.save_media_utils import (
     log_duration, safe_filename, detect_mime, log,
     is_valid_image, is_extension_blocked, is_file_size_out_of_bounds,
     is_domain_blocked_by_whitelist, is_domain_blacklisted,
-    is_image_size_out_of_bounds
+    is_image_size_out_of_bounds, does_header_match_size
 )
-
 
 class ConfigChangeHandler(FileSystemEventHandler):
     def __init__(self, callback):
@@ -98,7 +97,8 @@ class MediaSaver:
         mime_type = detect_mime(content)
         log('info', "brown", f"{fname} -> {mime_type}, {size} bytes")
 
-        if (is_file_size_out_of_bounds(size, fname) or
+        if (not does_header_match_size(flow.response.headers.get("Content-Length"), size, url) or 
+            is_file_size_out_of_bounds(size, fname) or
             is_extension_blocked(ext, fname) or
             is_domain_blocked_by_whitelist(url, fname) or
             is_domain_blacklisted(url, fname)):

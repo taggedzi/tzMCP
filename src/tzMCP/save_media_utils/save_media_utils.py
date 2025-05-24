@@ -183,3 +183,16 @@ def is_image_size_out_of_bounds(content: bytes, fname: str = None):
         if ENABLE_PERFORMANCE_CHECK:
             log_duration("Image Size Check", start_image_pixel_dimension_check)
         return response
+
+def does_header_match_size(content_length, actual, url):
+    """Verifies that the content length of a file matches the actual size."""
+    response = True
+    if content_length is not None:
+        try:
+            expected = int(content_length)
+            if expected != actual:
+                log("error", "red", f"⛔ Content-Length mismatch: expected {expected}, got {actual}", f"\tURL: {url}")
+                response = False
+        except ValueError:
+            log("error","red", f"⚠ Invalid Content-Length header: {content_length}", f"\tURL: {url}")
+    return response
