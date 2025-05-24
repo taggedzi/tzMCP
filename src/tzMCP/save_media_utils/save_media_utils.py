@@ -233,8 +233,14 @@ def atomic_save(content: bytes, save_path: Path, size: int):
             tmp.write(content)
             tmp_path = Path(tmp.name)
 
-        os.replace(tmp_path, save_path)
-        log("info", "green", f"💾 Saved → {save_path} ({size} B)")
+        final_path = save_path
+        counter = 1
+        while final_path.exists():
+            final_path = save_path.with_stem(f"{save_path.stem}_{counter}")
+            counter += 1
+
+        os.replace(tmp_path, final_path)
+        log("info", "green", f"💾 Saved → {final_path} ({size} B)")
 
     except PermissionError:
         log("error", "red", f"❌ Permission denied: {save_path}")

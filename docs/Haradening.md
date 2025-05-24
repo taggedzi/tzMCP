@@ -8,14 +8,14 @@ This plan outlines a step-by-step strategy to harden the security and improve th
 
 #### **Step 1: Lock Down Dangerous Behaviors**
 
-* [ ] Disable or eliminate all "trusted pipeline" shortcuts.
+* [x] Disable or eliminate all "trusted pipeline" shortcuts.
 * [ ] Sanitize and validate all config inputs.
-* [ ] Escape or reject unsafe characters in filenames/URLs.
-* [ ] Validate MIME types and enforce strict extension whitelist.
+* [x] Escape or reject unsafe characters in filenames/URLs.
+* [x] Validate MIME types and enforce strict extension whitelist.
 
 #### **Step 2: Improve Logging Transparency**
 
-* [ ] Ensure all rejection reasons are clearly logged.
+* [x] Ensure all rejection reasons are clearly logged.
 * [ ] Allow export of logs for user debugging.
 * [ ] Add log filtering (e.g., show only errors/skips/saves).
 
@@ -27,14 +27,14 @@ This plan outlines a step-by-step strategy to harden the security and improve th
 
 #### **Step 4: Guard Against Path Traversals / Write Abuse**
 
-* [ ] Normalize and resolve `save_dir`.
-* [ ] Reject paths that escape the project root or cache directory.
+* [x] Normalize and resolve `save_dir`.
+* [x] Reject paths that escape the project root or cache directory.
 
 #### **Step 5: Test Invalid/Malicious Payloads**
 
 * [ ] Attempt malformed URLs, headers, etc.
 * [ ] Verify that oversized and untrusted binary blobs are rejected.
-* [ ] Confirm that malicious filenames (e.g., "../", unicode tricks) don’t escape.
+* [x] Confirm that malicious filenames (e.g., "../", unicode tricks) don’t escape.
 
 ---
 

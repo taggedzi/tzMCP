@@ -14,7 +14,6 @@ from tzMCP.save_media_utils.save_media_utils import (
     is_image_size_out_of_bounds, does_header_match_size,
     is_directory_traversal_attempted, atomic_save
 )
-from tempfile import NamedTemporaryFile
 
 class ConfigChangeHandler(FileSystemEventHandler):
     def __init__(self, callback):
