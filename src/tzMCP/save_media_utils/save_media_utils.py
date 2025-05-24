@@ -34,7 +34,6 @@ def send_log_to_gui(entry):
 def log(level: str, color: str, *lines: str):
     """Log a message to the console and optionally to the GUI"""
     # only skip if it is a debug messsage and debug messages are not wanted.
-    print(get_config().log_internal_debug)
     if level.lower() == "debug" and not get_config().log_internal_debug:
         return
 
@@ -168,7 +167,7 @@ def is_image_size_out_of_bounds(content: bytes, fname: str = None):
             min_h = config.filter_pixel_dimensions.get("min_height", 1)
             max_h = config.filter_pixel_dimensions.get("max_height", 999999)
             if w < min_w or w > max_w or h < min_h or h > max_h:
-                log("warn", "orange", f"⏭ Skipped file {fname}", f"Reason: ({w}x{h} not in allowed ranges)")
+                log("warn", "orange", f"⏭ Skipped file {fname}", f"\tReason: ({w}x{h} not in allowed ranges)")
                 response = True
         except Exception as e:
             log("error", "red", f"⛔ Pixel check failed: {e}")
