@@ -13,6 +13,7 @@ from time import perf_counter
 from tzMCP.save_media_utils.config_provider import get_config
 from urllib.parse import urlparse
 from mitmproxy import ctx
+from threading import Thread
 
 ENABLE_PERFORMANCE_CHECK = True
 
@@ -26,10 +27,12 @@ def log_duration(label, start_time):
         print(f"[PROFILE] {label} took {duration:.4f}s", flush=True)
 
 def send_log_to_gui(entry):
-    try:
-        requests.post("http://localhost:5001", json=entry, timeout=0.5)
-    except requests.exceptions.RequestException:
-        pass
+    def _post():
+        try:
+            requests.post("http://localhost:5001", json=entry, timeout=0.1)
+        except requests.exceptions.RequestException:
+            pass
+    Thread(target=_post, daemon=True).start()
 
 def log(level: str, color: str, *lines: str):
     """Log a message to the console and optionally to the GUI"""
@@ -100,8 +103,8 @@ def is_file_size_out_of_bounds(size:int, fname:str = None):
         min_b = config.filter_file_size["min_bytes"]
         max_b = config.filter_file_size["max_bytes"]
         if not min_b <= size <= max_b:
-            log("warn", "orange",
-                f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
+            # log("warn", "orange",
+            #     f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
             response = True
     log_duration("is_file_size_out_of_bounds() ", start_is_domain_blocked_by_whitelist_check)
     return response
