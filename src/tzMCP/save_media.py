@@ -108,13 +108,22 @@ class MediaSaver:
         if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
             return
 
-        save_path = self.config.save_dir / fname
+        save_path = (self.config.save_dir / fname).resolve()
+        if not str(save_path).startswith(str(self.config.save_dir.resolve())):
+            log("error", "red", f"❌ Security error: attempted path traversal blocked → {save_path}")
+            return
+        
+        # Ensure save directory exists
+        self.config.save_dir.mkdir(parents=True, exist_ok=True)
+        
         try:
             with save_path.open('wb') as f:
                 f.write(content)
             log("info", "green", f"💾 Saved → {save_path} ({size} B)")
-        except Exception as e:
-            log("error", "red", f"❌ Save failed: {e}")
+        except PermissionError:
+            log("error", "red", f"❌ Permission denied: {save_path}")
+        except OSError as e:
+            log("error", "red", f"❌ OS error while saving: {e}")
         log_duration("response()", start_total)
 
 addons = [MediaSaver()]
