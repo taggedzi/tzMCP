@@ -3,13 +3,19 @@ from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 import yaml
 
+MIME_GROUPS = {
+    "image": ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/bmp", "image/tiff"],
+    "video": ["video/mp4", "video/webm", "video/ogg", "video/quicktime"],
+    "audio": ["audio/mpeg", "audio/wav", "audio/ogg"],
+    "text": ["text/plain", "text/html", "text/css", "text/javascript", "application/json", "application/xml"],
+    "document": ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    "code": ["application/javascript", "application/x-python-code", "text/x-python"],
+}
 
 @dataclass
 class Config:
-    save_dir: Path = Path("E:/Home/Documents/Programming/mitmproxy/cache/mitmproxy_media")
-    extensions: List[str] = field(default_factory=lambda: [
-        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".webm", ".mov"
-    ])
+    save_dir: Path = Path("E:/Home/Documents/Programming/tzMCP/cache")
+    allowed_mime_groups: list[str] = field(default_factory=list)
     whitelist: List[str] = field(default_factory=list)
     blacklist: List[str] = field(default_factory=lambda: ["ads\\..*", ".*\\.doubleclick\\.net"])
     filter_pixel_dimensions: Dict[str, Any] = field(default_factory=lambda: {
@@ -49,8 +55,8 @@ class ConfigManager:
                 raw = yaml.safe_load(f) or {}
             if "save_dir" in raw:
                 self.config.save_dir = Path(raw["save_dir"])
-            if "extensions" in raw and isinstance(raw["extensions"], list):
-                self.config.extensions = raw["extensions"]
+            if "allowed_mime_groups" in raw and isinstance(raw["allowed_mime_groups"], list):
+                self.config.allowed_mime_groups = raw["allowed_mime_groups"]
             if "whitelist" in raw and isinstance(raw["whitelist"], list):
                 self.config.whitelist = raw["whitelist"]
             if "blacklist" in raw and isinstance(raw["blacklist"], list):

@@ -2,15 +2,16 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 
-from tzMCP.gui_bits.config_manager import ConfigManager, Config
+from tzMCP.gui_bits.config_manager import ConfigManager, Config, MIME_GROUPS
 
 
 class ConfigTab(ttk.Frame):
-    """Tab for viewing and editing application configuration."""
+    """Config tab for the GUI."""
     def __init__(self, parent, config_manager: ConfigManager, config: Config):
         super().__init__(parent)
         self.config_manager = config_manager
         self.config = config
+        self.mime_group_vars = {}
         self._build_ui()
 
     def _build_ui(self):
@@ -20,10 +21,15 @@ class ConfigTab(ttk.Frame):
         tk.Entry(self, textvariable=self.save_dir_var, width=40).grid(row=0, column=1, sticky='ew', padx=5, pady=2)
         tk.Button(self, text="Browse", command=self._browse).grid(row=0, column=2, padx=5, pady=2)
 
-        # Extensions
-        tk.Label(self, text="Extensions (comma-separated):").grid(row=1, column=0, sticky='w', padx=5, pady=2)
-        self.ext_var = tk.StringVar(value=','.join(self.config.extensions))
-        tk.Entry(self, textvariable=self.ext_var).grid(row=1, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        # MIME Groups
+        tk.Label(self, text="Allowed MIME Groups:").grid(row=1, column=0, sticky='nw', padx=5, pady=2)
+        mime_frame = ttk.Frame(self)
+        mime_frame.grid(row=1, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        for i, group in enumerate(MIME_GROUPS.keys()):
+            var = tk.BooleanVar(value=group in self.config.allowed_mime_groups)
+            cb = tk.Checkbutton(mime_frame, text=group.capitalize(), variable=var)
+            cb.grid(row=0, column=i, sticky='w')
+            self.mime_group_vars[group] = var
 
         # Whitelist
         tk.Label(self, text="Whitelist Domains (one per line):").grid(row=2, column=0, sticky='nw', padx=5, pady=2)
@@ -37,69 +43,47 @@ class ConfigTab(ttk.Frame):
         self.blacklist_box.grid(row=3, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
         self.blacklist_box.insert(tk.END, '\n'.join(self.config.blacklist))
 
-        # Pixel Dimensions Filter
-        self.pix_filter_var = tk.BooleanVar(value=self.config.filter_pixel_dimensions.get('enabled', False))
-        tk.Checkbutton(self, text="Enable Pixel Filter", variable=self.pix_filter_var, command=self._toggle_pixel_fields).grid(row=4, column=0, columnspan=3, sticky='w', padx=5, pady=2)
-        tk.Label(self, text="Min Width:").grid(row=5, column=0, sticky='w', padx=5, pady=2)
-        self.min_width_var = tk.StringVar(value=str(self.config.filter_pixel_dimensions.get('min_width', '')))
-        self.min_width_entry = tk.Entry(self, textvariable=self.min_width_var, width=10)
-        self.min_width_entry.grid(row=5, column=1, sticky='w', padx=5, pady=2)
-        tk.Label(self, text="Min Height:").grid(row=5, column=2, sticky='w', padx=5, pady=2)
-        self.min_height_var = tk.StringVar(value=str(self.config.filter_pixel_dimensions.get('min_height', '')))
-        self.min_height_entry = tk.Entry(self, textvariable=self.min_height_var, width=10)
-        self.min_height_entry.grid(row=5, column=3, sticky='w', padx=5, pady=2)
-        tk.Label(self, text="Max Width:").grid(row=6, column=0, sticky='w', padx=5, pady=2)
-        self.max_width_var = tk.StringVar(value=str(self.config.filter_pixel_dimensions.get('max_width', '')))
-        self.max_width_entry = tk.Entry(self, textvariable=self.max_width_var, width=10)
-        self.max_width_entry.grid(row=6, column=1, sticky='w', padx=5, pady=2)
-        tk.Label(self, text="Max Height:").grid(row=6, column=2, sticky='w', padx=5, pady=2)
-        self.max_height_var = tk.StringVar(value=str(self.config.filter_pixel_dimensions.get('max_height', '')))
-        self.max_height_entry = tk.Entry(self, textvariable=self.max_height_var, width=10)
-        self.max_height_entry.grid(row=6, column=3, sticky='w', padx=5, pady=2)
-
         # File Size Filter
-        self.size_filter_var = tk.BooleanVar(value=self.config.filter_file_size.get('enabled', False))
-        tk.Checkbutton(self, text="Enable File Size Filter", variable=self.size_filter_var, command=self._toggle_size_fields).grid(row=7, column=0, columnspan=3, sticky='w', padx=5, pady=2)
-        tk.Label(self, text="Min Bytes:").grid(row=8, column=0, sticky='w', padx=5, pady=2)
-        self.min_bytes_var = tk.StringVar(value=str(self.config.filter_file_size.get('min_bytes', '')))
-        self.min_bytes_entry = tk.Entry(self, textvariable=self.min_bytes_var, width=12)
-        self.min_bytes_entry.grid(row=8, column=1, sticky='w', padx=5, pady=2)
-        tk.Label(self, text="Max Bytes:").grid(row=8, column=2, sticky='w', padx=5, pady=2)
-        self.max_bytes_var = tk.StringVar(value=str(self.config.filter_file_size.get('max_bytes', '')))
-        self.max_bytes_entry = tk.Entry(self, textvariable=self.max_bytes_var, width=12)
-        self.max_bytes_entry.grid(row=8, column=3, sticky='w', padx=5, pady=2)
+        tk.Label(self, text="File Size Filter (bytes):").grid(row=4, column=0, sticky='nw', padx=5, pady=2)
+        fs_frame = ttk.Frame(self)
+        fs_frame.grid(row=4, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        self.min_bytes = tk.IntVar(value=self.config.filter_file_size.get("min_bytes", 1))
+        self.max_bytes = tk.IntVar(value=self.config.filter_file_size.get("max_bytes", 157286400))
+        tk.Label(fs_frame, text="Min:").grid(row=0, column=0, padx=2)
+        tk.Entry(fs_frame, textvariable=self.min_bytes, width=10).grid(row=0, column=1, padx=2)
+        tk.Label(fs_frame, text="Max:").grid(row=0, column=2, padx=2)
+        tk.Entry(fs_frame, textvariable=self.max_bytes, width=10).grid(row=0, column=3, padx=2)
+
+        # Pixel Dimension Filter
+        tk.Label(self, text="Pixel Dimension Filter:").grid(row=5, column=0, sticky='nw', padx=5, pady=2)
+        pd_frame = ttk.Frame(self)
+        pd_frame.grid(row=5, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        self.min_width = tk.IntVar(value=self.config.filter_pixel_dimensions.get("min_width", 1))
+        self.min_height = tk.IntVar(value=self.config.filter_pixel_dimensions.get("min_height", 1))
+        self.max_width = tk.IntVar(value=self.config.filter_pixel_dimensions.get("max_width", 12000))
+        self.max_height = tk.IntVar(value=self.config.filter_pixel_dimensions.get("max_height", 12000))
+        tk.Label(pd_frame, text="Min WxH:").grid(row=0, column=0, padx=2)
+        tk.Entry(pd_frame, textvariable=self.min_width, width=6).grid(row=0, column=1, padx=2)
+        tk.Entry(pd_frame, textvariable=self.min_height, width=6).grid(row=0, column=2, padx=2)
+        tk.Label(pd_frame, text="Max WxH:").grid(row=0, column=3, padx=2)
+        tk.Entry(pd_frame, textvariable=self.max_width, width=6).grid(row=0, column=4, padx=2)
+        tk.Entry(pd_frame, textvariable=self.max_height, width=6).grid(row=0, column=5, padx=2)
 
         # Flags
-        self.log_internal_debug_var = tk.BooleanVar(value=self.config.log_internal_debug)
-        tk.Checkbutton(self, text="Log Internal Debug", variable=self.log_internal_debug_var).grid(row=9, column=0, columnspan=1, sticky='w', padx=5, pady=2)
-
-        self.log_seen_var = tk.BooleanVar(value=self.config.log_seen_domains)
-        tk.Checkbutton(self, text="Log Seen Domains", variable=self.log_seen_var).grid(row=9, column=1, columnspan=1, sticky='w', padx=5, pady=2)
-
-        self.reload_var = tk.BooleanVar(value=self.config.auto_reload_config)
-        tk.Checkbutton(self, text="Auto Reload Config", variable=self.reload_var).grid(row=9, column=2, columnspan=1, sticky='w', padx=5, pady=2)
-
+        self.log_internal_debug = tk.BooleanVar(value=self.config.log_internal_debug)
+        self.log_seen_domains = tk.BooleanVar(value=self.config.log_seen_domains)
+        self.auto_reload_config = tk.BooleanVar(value=self.config.auto_reload_config)
+        flag_frame = ttk.Frame(self)
+        flag_frame.grid(row=6, column=1, columnspan=2, sticky='w', padx=5, pady=5)
+        tk.Checkbutton(flag_frame, text="Log Internal Debug", variable=self.log_internal_debug).grid(row=0, column=0, sticky='w', padx=5)
+        tk.Checkbutton(flag_frame, text="Log Seen Domains", variable=self.log_seen_domains).grid(row=0, column=1, sticky='w', padx=5)
+        tk.Checkbutton(flag_frame, text="Auto Reload Config", variable=self.auto_reload_config).grid(row=0, column=2, sticky='w', padx=5)
 
         # Save Button
-        tk.Button(self, text="Save Configuration", command=self._save).grid(row=10, column=0, columnspan=4, pady=10)
+        tk.Button(self, text="Save Configuration", command=self._save).grid(row=10, column=0, columnspan=3, pady=10)
 
-        # Configure grid weights
-        for i in range(4):
+        for i in range(3):
             self.columnconfigure(i, weight=1)
-
-        # Initialize field states
-        self._toggle_pixel_fields()
-        self._toggle_size_fields()
-
-    def _toggle_pixel_fields(self):
-        state = 'normal' if self.pix_filter_var.get() else 'disabled'
-        for widget in [self.min_width_entry, self.min_height_entry, self.max_width_entry, self.max_height_entry]:
-            widget.config(state=state)
-
-    def _toggle_size_fields(self):
-        state = 'normal' if self.size_filter_var.get() else 'disabled'
-        for widget in [self.min_bytes_entry, self.max_bytes_entry]:
-            widget.config(state=state)
 
     def _browse(self):
         path = filedialog.askdirectory()
@@ -108,26 +92,27 @@ class ConfigTab(ttk.Frame):
 
     def _save(self):
         try:
+            selected_mime_groups = [group for group, var in self.mime_group_vars.items() if var.get()]
             new_cfg = Config(
                 save_dir=Path(self.save_dir_var.get()),
-                extensions=[e.strip() for e in self.ext_var.get().split(',') if e.strip()],
                 whitelist=[line.strip() for line in self.whitelist_box.get("1.0", tk.END).splitlines() if line.strip()],
                 blacklist=[line.strip() for line in self.blacklist_box.get("1.0", tk.END).splitlines() if line.strip()],
+                allowed_mime_groups=selected_mime_groups,
                 filter_pixel_dimensions={
-                    'enabled': self.pix_filter_var.get(),
-                    'min_width': int(self.min_width_var.get()),
-                    'min_height': int(self.min_height_var.get()),
-                    'max_width': int(self.max_width_var.get()),
-                    'max_height': int(self.max_height_var.get())
+                    "enabled": True,
+                    "min_width": self.min_width.get(),
+                    "min_height": self.min_height.get(),
+                    "max_width": self.max_width.get(),
+                    "max_height": self.max_height.get(),
                 },
                 filter_file_size={
-                    'enabled': self.size_filter_var.get(),
-                    'min_bytes': int(self.min_bytes_var.get()),
-                    'max_bytes': int(self.max_bytes_var.get())
+                    "enabled": True,
+                    "min_bytes": self.min_bytes.get(),
+                    "max_bytes": self.max_bytes.get(),
                 },
-                log_internal_debug=self.log_internal_debug_var.get(),
-                log_seen_domains=self.log_seen_var.get(),
-                auto_reload_config=self.reload_var.get()
+                log_internal_debug=self.log_internal_debug.get(),
+                log_seen_domains=self.log_seen_domains.get(),
+                auto_reload_config=self.auto_reload_config.get()
             )
             self.config_manager.save_config(new_cfg)
             messagebox.showinfo("Success", "Configuration saved successfully.")
