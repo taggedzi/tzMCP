@@ -11,8 +11,10 @@ from tzMCP.save_media_utils.save_media_utils import (
     log_duration, safe_filename, detect_mime, log,
     is_valid_image, is_mime_type_allowed, is_file_size_out_of_bounds,
     is_domain_blocked_by_whitelist, is_domain_blacklisted,
-    is_image_size_out_of_bounds, does_header_match_size
+    is_image_size_out_of_bounds, does_header_match_size,
+    is_directory_traversal_attempted, atomic_save
 )
+from tempfile import NamedTemporaryFile
 
 class ConfigChangeHandler(FileSystemEventHandler):
     def __init__(self, callback):
@@ -103,27 +105,16 @@ class MediaSaver:
             is_domain_blocked_by_whitelist(url, fname) or
             is_domain_blacklisted(url, fname)):
             return
-
         
         if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
             return
 
         save_path = (self.config.save_dir / fname).resolve()
-        if not str(save_path).startswith(str(self.config.save_dir.resolve())):
-            log("error", "red", f"❌ Security error: attempted path traversal blocked → {save_path}")
-            return
-        
-        # Ensure save directory exists
-        self.config.save_dir.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            with save_path.open('wb') as f:
-                f.write(content)
-            log("info", "green", f"💾 Saved → {save_path} ({size} B)")
-        except PermissionError:
-            log("error", "red", f"❌ Permission denied: {save_path}")
-        except OSError as e:
-            log("error", "red", f"❌ OS error while saving: {e}")
+        if not is_directory_traversal_attempted(save_path):
+            # Ensure save directory exists
+            self.config.save_dir.mkdir(parents=True, exist_ok=True)
+
+        atomic_save(content, save_path, size)
         log_duration("response()", start_total)
 
 addons = [MediaSaver()]

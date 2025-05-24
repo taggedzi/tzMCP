@@ -14,6 +14,7 @@ from tzMCP.save_media_utils.config_provider import get_config
 from urllib.parse import urlparse
 from mitmproxy import ctx
 from threading import Thread
+from tempfile import NamedTemporaryFile
 
 ENABLE_PERFORMANCE_CHECK = True
 
@@ -196,3 +197,53 @@ def does_header_match_size(content_length, actual, url):
         except ValueError:
             log("error","red", f"⚠ Invalid Content-Length header: {content_length}", f"\tURL: {url}")
     return response
+
+
+def cleanup_temp_file(tmp_path: Path):
+    if tmp_path and tmp_path.exists():
+        try:
+            tmp_path.unlink()
+            log("debug", "grey", f"🧹 Cleaned up temp file → {tmp_path}")
+        except Exception as cleanup_error:
+            log("error", "red", f"⚠ Failed to clean up temp file: {cleanup_error}")
+            
+
+def is_directory_traversal_attempted(save_path:str):
+    start_check = perf_counter()
+    response = False
+    config = get_config()
+    
+    if not str(save_path).startswith(str(config.save_dir.resolve())):
+        log("error", "red", f"❌ Security error: attempted path traversal blocked → {save_path}")
+        response = True
+    else:
+        # Ensure save directory exists
+        config.save_dir.mkdir(parents=True, exist_ok=True)
+    log_duration("is_directory_traversal_attempted() ", start_check)
+    return response
+
+def atomic_save(content: bytes, save_path: Path, size: int):
+    """
+    Write content to a temporary file and atomically move it to the final path.
+    Ensures no partial file writes and handles cleanup on failure.
+    """
+    tmp_path = None
+    try:
+        with NamedTemporaryFile('wb', delete=False, dir=save_path.parent) as tmp:
+            tmp.write(content)
+            tmp_path = Path(tmp.name)
+
+        os.replace(tmp_path, save_path)
+        log("info", "green", f"💾 Saved → {save_path} ({size} B)")
+
+    except PermissionError:
+        log("error", "red", f"❌ Permission denied: {save_path}")
+        cleanup_temp_file(tmp_path)
+
+    except OSError as e:
+        log("error", "red", f"❌ OS error while saving: {e}")
+        cleanup_temp_file(tmp_path)
+
+    except Exception as e:
+        log("error", "red", f"❌ Unexpected save failure: {e}")
+        cleanup_temp_file(tmp_path)
