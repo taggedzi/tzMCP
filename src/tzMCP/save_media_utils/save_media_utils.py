@@ -82,17 +82,24 @@ def detect_mime(data: bytes) -> str:
         except Exception:
             return "application/octet-stream"
 
-def is_extension_blocked(ext:str = None, fname:str = None):
-    """Test Extensions against config file requested extensions"""
-    start_is_extension_blocked_check = perf_counter()
-    response = False
-    allowed_exts = set(e.lower() for e in get_config().extensions)
-    if ext.lower() not in allowed_exts:
-        ctx.log.info(f"Skipping file with extension {ext.lower()} because it is not in the config's extensions list.")
-        log("warn", "orange", f"⏭ Skipped file {fname}", f"\tReason: {ext.lower()} is not in the config's extensions list.")
-        response = True
-    log_duration("is_extension_blocked() ", start_is_extension_blocked_check)
-    return response
+def is_mime_type_allowed(mime_type: str, fname: str = None) -> bool:
+    """Check if MIME type is in one of the allowed MIME groups."""
+    start_check = perf_counter()
+    config = get_config()
+    from tzMCP.gui_bits.config_manager import MIME_GROUPS
+
+    allowed_types = set()
+    for group in config.allowed_mime_groups:
+        allowed_types.update(MIME_GROUPS.get(group, []))
+
+    result = True
+    if mime_type not in allowed_types:
+        log("warn", "orange", f"⏭ Skipped file {fname}", f"\tReason: MIME type {mime_type} not allowed.")
+        result = False
+
+    log_duration("is_mime_type_allowed()", start_check)
+    return result
+
 
 def is_file_size_out_of_bounds(size:int, fname:str = None):
     """Test Size against config file requested size"""

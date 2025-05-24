@@ -9,7 +9,7 @@ from tzMCP.gui_bits.config_manager import ConfigManager, Config
 from tzMCP.save_media_utils import config_provider
 from tzMCP.save_media_utils.save_media_utils import (
     log_duration, safe_filename, detect_mime, log,
-    is_valid_image, is_extension_blocked, is_file_size_out_of_bounds,
+    is_valid_image, is_mime_type_allowed, is_file_size_out_of_bounds,
     is_domain_blocked_by_whitelist, is_domain_blacklisted,
     is_image_size_out_of_bounds, does_header_match_size
 )
@@ -99,10 +99,11 @@ class MediaSaver:
 
         if (not does_header_match_size(flow.response.headers.get("Content-Length"), size, url) or 
             is_file_size_out_of_bounds(size, fname) or
-            is_extension_blocked(ext, fname) or
+            not is_mime_type_allowed(mime_type, fname) or
             is_domain_blocked_by_whitelist(url, fname) or
             is_domain_blacklisted(url, fname)):
             return
+
         
         if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
             return

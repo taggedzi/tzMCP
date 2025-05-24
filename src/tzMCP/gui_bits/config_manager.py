@@ -40,7 +40,7 @@ class ConfigManager:
         """Initialize with optional config_path; defaults to project/config/media_proxy_config.yaml."""
         # Determine config path
         if config_path is None:
-            base = Path(__file__).parent.parent.parent
+            base = Path(__file__).parent.parent.parent.parent
             config_path = base / "config" / "media_proxy_config.yaml"
         self.config_path = config_path
         # Ensure config directory exists

@@ -1,13 +1,6 @@
 save_dir: E:\Home\Documents\Programming\tzMCP\cache
-extensions:
-- .jpg
-- .jpeg
-- .png
-- .gif
-- .webp
-- .mp4
-- .webm
-- .mov
+allowed_mime_groups:
+- image
 whitelist: []
 blacklist:
 - doubleclick.net
