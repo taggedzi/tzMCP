@@ -9,7 +9,7 @@ This plan outlines a step-by-step strategy to harden the security and improve th
 #### **Step 1: Lock Down Dangerous Behaviors**
 
 * [x] Disable or eliminate all "trusted pipeline" shortcuts.
-* [ ] Sanitize and validate all config inputs.
+* [x] Sanitize and validate all config inputs.
 * [x] Escape or reject unsafe characters in filenames/URLs.
 * [x] Validate MIME types and enforce strict extension whitelist.
 
@@ -21,8 +21,8 @@ This plan outlines a step-by-step strategy to harden the security and improve th
 
 #### **Step 3: Enhance Config Monitoring**
 
-* [ ] Migrate config watcher to `watchdog`.
-* [ ] Avoid excessive polling or reloads.
+* [x] Migrate config watcher to `watchdog`.
+* [x] Avoid excessive polling or reloads.
 * [ ] Add a small debounce buffer (e.g., 250ms) to coalesce edits.
 
 #### **Step 4: Guard Against Path Traversals / Write Abuse**
