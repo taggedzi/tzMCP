@@ -21,8 +21,9 @@ ENABLE_PERFORMANCE_CHECK = True
 # ----------------------------------
 
 def log_duration(label, start_time):
-    duration = time.perf_counter() - start_time
-    print(f"[PROFILE] {label} took {duration:.4f}s", flush=True)
+    if ENABLE_PERFORMANCE_CHECK:
+        duration = time.perf_counter() - start_time
+        print(f"[PROFILE] {label} took {duration:.4f}s", flush=True)
 
 def send_log_to_gui(entry):
     try:
@@ -31,18 +32,15 @@ def send_log_to_gui(entry):
         pass
 
 def log(level: str, color: str, *lines: str):
-    config = get_config()
-    if config is None or not config.log_internal_debug:
-        raise ValueError("Config not found")
-    level = level.lower()
-    
+    """Log a message to the console and optionally to the GUI"""
     # only skip if it is a debug messsage and debug messages are not wanted.
-    if level == "debug" and not config.log_internal_debug:
+    print(get_config().log_internal_debug)
+    if level.lower() == "debug" and not get_config().log_internal_debug:
         return
-    
+
     # Print to console
     print("\n".join(list(lines)), flush=True)
-    
+
     # Send to GUI
     entry = {
         "color": color,
@@ -82,27 +80,21 @@ def detect_mime(data: bytes) -> str:
         except Exception:
             return "application/octet-stream"
 
-def domain_matches(url: str, domain_list: list[str]) -> bool:
-    return any(domain in url for domain in domain_list)
-
-
-
 def is_extension_blocked(ext:str = None, fname:str = None):
     """Test Extensions against config file requested extensions"""
-    start_ext_check = perf_counter()
+    start_is_extension_blocked_check = perf_counter()
     response = False
     allowed_exts = set(e.lower() for e in get_config().extensions)
     if ext.lower() not in allowed_exts:
         ctx.log.info(f"Skipping file with extension {ext.lower()} because it is not in the config's extensions list.")
         log("warn", "orange", f"⏭ Skipped file {fname}", f"\tReason: {ext.lower()} is not in the config's extensions list.")
         response = True
-    if ENABLE_PERFORMANCE_CHECK:
-        log_duration("File Extension Check", start_ext_check)
+    log_duration("is_extension_blocked() ", start_is_extension_blocked_check)
     return response
 
 def is_file_size_out_of_bounds(size:int, fname:str = None):
     """Test Size against config file requested size"""
-    start_size_check = perf_counter()
+    start_is_domain_blocked_by_whitelist_check = perf_counter()
     response = False
     config = get_config()
     if config.filter_file_size.get("enabled"):
@@ -112,8 +104,7 @@ def is_file_size_out_of_bounds(size:int, fname:str = None):
             log("warn", "orange",
                 f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
             response = True
-    if ENABLE_PERFORMANCE_CHECK:
-        log_duration("File Size Check", start_size_check)
+    log_duration("is_file_size_out_of_bounds() ", start_is_domain_blocked_by_whitelist_check)
     return response
 
 def is_domain_blocked_by_whitelist(url:str, fname:str = None):
@@ -122,7 +113,7 @@ def is_domain_blocked_by_whitelist(url:str, fname:str = None):
     IF whitelist is NOT set (ie []), then allow all domains
     IF whitelist is set, then only allow domains that are in the list
     """
-    start_whitelist_check = perf_counter()
+    start_is_domain_blocked_by_whitelist_check = perf_counter()
     response = False
     config = get_config()
     if config.whitelist:
@@ -131,8 +122,7 @@ def is_domain_blocked_by_whitelist(url:str, fname:str = None):
             log("warn", "orange",
                 f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain not in whitelist.")
             response = True
-    if ENABLE_PERFORMANCE_CHECK:
-        log_duration("Whitelist check", start_whitelist_check)
+    log_duration("is_domain_blocked_by_whitelist() ", start_is_domain_blocked_by_whitelist_check)
     return response
 
 def is_domain_blacklisted(url:str, fname:str = None):
@@ -141,7 +131,7 @@ def is_domain_blacklisted(url:str, fname:str = None):
     IF blacklist is NOT set (ie []), then allow all domains
     IF blacklist is set, then only allow domains that are not in the list
     """
-    start_blacklist_check = perf_counter()
+    start_is_domian_blacklisted_check = perf_counter()
     response = False
     config = get_config()
     if config.blacklist:
@@ -150,21 +140,23 @@ def is_domain_blacklisted(url:str, fname:str = None):
             log("warn", "orange",
                 f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain in blacklist.")
             response = True
-    if ENABLE_PERFORMANCE_CHECK:
-        log_duration("Blacklist check", start_blacklist_check)
+    log_duration("is_domain_blacklisted() ", start_is_domian_blacklisted_check)
     return response
 
-
 def is_valid_image(content: bytes):
+    start_is_valid_image_check = perf_counter()
+    response = False
     try:
         img = Image.open(BytesIO(content))
         img.verify()  # Verify header-only, no full decode
-        return True
+        response = True
     except Exception:
-        return False
+        response = False
+    log_duration("is_valid_image() ", start_is_valid_image_check)
+    return response
 
 def is_image_size_out_of_bounds(content: bytes, fname: str = None):
-    start_image_pixel_dimension_check = perf_counter()
+    start_is_image_size_out_of_bounds_check = perf_counter()
     response = False
     config = get_config()
     if config.filter_pixel_dimensions:
@@ -180,9 +172,8 @@ def is_image_size_out_of_bounds(content: bytes, fname: str = None):
                 response = True
         except Exception as e:
             log("error", "red", f"⛔ Pixel check failed: {e}")
-        if ENABLE_PERFORMANCE_CHECK:
-            log_duration("Image Size Check", start_image_pixel_dimension_check)
-        return response
+    log_duration("is_image_size_out_of_bounds() ", start_is_image_size_out_of_bounds_check)
+    return response
 
 def does_header_match_size(content_length, actual, url):
     """Verifies that the content length of a file matches the actual size."""

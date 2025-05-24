@@ -86,6 +86,9 @@ class ProxyTab(ttk.Frame):
 
     def _start_log_server(self):
         class LogRequestHandler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass  # Suppress logging
+            
             def do_POST(inner_self):
                 content_len = int(inner_self.headers['Content-Length'])
                 body = inner_self.rfile.read(content_len)
