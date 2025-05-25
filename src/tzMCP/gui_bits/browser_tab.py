@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 import yaml
-from tzMCP.gui_bits.browser_launcher import launch_browser
+from tzMCP.gui_bits.browser_launcher import launch_browser, detect_browser_name
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "browser_paths.yaml"
 
@@ -12,6 +12,7 @@ class BrowserTab(ttk.Frame):
         self.proxy_controller = proxy_controller
 
         self.browser_paths = self._load_browser_paths()
+        self.display_names = {k: k for k in self.browser_paths}
         self.selected_browser = tk.StringVar()
         self.launch_url = tk.StringVar(value="http://mitm.it")
         self.use_incognito = tk.BooleanVar(value=False)
@@ -22,7 +23,7 @@ class BrowserTab(ttk.Frame):
         row = 0
 
         ttk.Label(self, text="Select Browser:").grid(row=row, column=0, sticky="e")
-        self.browser_menu = ttk.OptionMenu(self, self.selected_browser, None, *self.browser_paths.keys())
+        self.browser_menu = ttk.OptionMenu(self, self.selected_browser, None, *self.display_names.values())
         self.browser_menu.grid(row=row, column=1, sticky="ew")
 
         row += 1
@@ -55,26 +56,50 @@ class BrowserTab(ttk.Frame):
         path = filedialog.askopenfilename(title="Select Browser Executable")
         if not path:
             return
-        name = Path(path).stem.lower()
-        if name in self.browser_paths:
-            if not messagebox.askyesno("Overwrite?", f"A browser named '{name}' already exists. Overwrite?"):
+
+        path_obj = Path(path)
+
+        try:
+            browser_name = detect_browser_name(path_obj)
+        except ValueError:
+            messagebox.showerror("Error", "Unsupported or unknown browser type.")
+            return
+
+        if path_obj.stem.lower() in {"iron", "firefoxportable", "braveportable"}:
+            messagebox.showwarning(
+                "Unsupported Wrapper",
+                f"The selected binary ({path_obj.name}) may be a wrapper. Please choose the actual browser binary inside the application folder."
+            )
+
+        display_name = f"{browser_name} ({path_obj.name})"
+
+        if browser_name in self.browser_paths:
+            if not messagebox.askyesno("Overwrite?", f"A browser named '{browser_name}' already exists. Overwrite?"):
                 return
-        self.browser_paths[name] = path
+
+        self.browser_paths[browser_name] = str(path_obj)
+        self.display_names[browser_name] = display_name
         self._save_browser_paths()
         self._refresh_browser_menu()
-        self.selected_browser.set(name)
+        self.selected_browser.set(display_name)
 
     def _refresh_browser_menu(self):
-        menu = self.browser_menu["menu"]
-        menu.delete(0, "end")  # pylint: disable=no-member
-        for name in self.browser_paths:
-            menu.add_command(label=name, command=lambda v=name: self.selected_browser.set(v))  # pylint: disable=no-member
+        menu = self.browser_menu["menu"]  # type: ignore
+        menu.delete(0, "end")
+        for name, label in self.display_names.items():
+            menu.add_command(label=label, command=lambda v=label: self.selected_browser.set(v))
 
     def _launch_browser(self):
-        name = self.selected_browser.get()
-        path = self.browser_paths.get(name)
+        selected_label = self.selected_browser.get()
+        # Reverse lookup the internal name
+        internal_name = next((k for k, v in self.display_names.items() if v == selected_label), None)
+        if not internal_name:
+            messagebox.showerror("Error", f"Browser path not found for selection: {selected_label}")
+            return
+
+        path = self.browser_paths.get(internal_name)
         if not path:
-            messagebox.showerror("Error", f"Browser path for '{name}' not found.")
+            messagebox.showerror("Error", f"Browser path for '{internal_name}' not found.")
             return
         try:
             launch_browser(Path(path), self.launch_url.get(), self.proxy_controller.proxy_port, self.use_incognito.get())

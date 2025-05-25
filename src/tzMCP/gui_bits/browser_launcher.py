@@ -27,6 +27,22 @@ def get_browser_profile_dir(browser_name: str) -> Path:
     profile_dir.mkdir(parents=True, exist_ok=True)
     return profile_dir
 
+def detect_browser_name(path: Path) -> str:
+    lower_path = str(path).lower()
+    if "iron" in lower_path:
+        return "iron"
+    if "brave" in lower_path:
+        return "brave"
+    if "vivaldi" in lower_path:
+        return "vivaldi"
+    if "opera" in lower_path:
+        return "opera"
+    if "firefox" in lower_path:
+        return "firefox"
+    if "chrome" in lower_path:
+        return "chrome"
+    raise ValueError(f"Unknown browser type for path: {path}")
+
 def launch_browser(
     path: Path,
     url: str,
@@ -36,12 +52,15 @@ def launch_browser(
     if not path.exists():
         raise FileNotFoundError(f"Browser executable not found: {path}")
 
-    browser_name = path.stem.lower()
+    browser_name = browser_name = detect_browser_name(path)
+    print(f"🔧 Detected browser: {browser_name}")
+
     plugin_map = {
         "chrome": "tzMCP.browser_plugins.chrome",
         "firefox": "tzMCP.browser_plugins.firefox",
         "brave": "tzMCP.browser_plugins.brave",
-        "opera": "tzMCP.browser_plugins.opera"
+        "opera": "tzMCP.browser_plugins.opera",
+        "iron": "tzMCP.browser_plugins.iron",
     }
 
     plugin_module_path = plugin_map.get(browser_name)
@@ -50,6 +69,7 @@ def launch_browser(
 
     plugin = importlib.import_module(plugin_module_path)
     cmd, profile_path = plugin.setup_browser(path, url, proxy_port, incognito)
+    
 
     print("Launching:", " ".join(f'\"{c}\"' if ' ' in c else c for c in cmd))
 
