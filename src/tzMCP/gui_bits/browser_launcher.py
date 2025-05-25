@@ -54,10 +54,8 @@ def launch_browser(
         kwargs["start_new_session"] = True
 
     proc = subprocess.Popen(cmd, **kwargs)
-    browser_proc = psutil.Process(proc.pid)
-    BROWSER_PROCESSES.append((browser_proc, profile_path))
-
-    BROWSER_PROCESSES.append((proc, profile_path))
+    ps_proc = psutil.Process(proc.pid)
+    BROWSER_PROCESSES.append((ps_proc, profile_path))
     return proc
 
 def _write_firefox_userjs(profile_path: Path, port: int):
@@ -82,15 +80,17 @@ def cleanup_browsers():
             proc.kill()
             print(f"✓ Killed browser tree for PID {proc.pid}")
         except Exception as e:
-            print(f"⚠️ Failed to kill browser tree: {e}")
+            print(f"⚠️ Could not kill process tree for PID {proc.pid}: {e}")
         try:
             safe_rmtree(path)
-            print(f"🧹 Cleaned profile: {path}")
         except Exception as e:
             print(f"⚠️ Failed to clean profile: {e}")
     BROWSER_PROCESSES.clear()
 
 def safe_rmtree(path: Path, attempts=5, delay=1.0):
+    if not path.exists():
+        print(f"🧹 Profile already deleted: {path}")
+        return
     for attempt in range(attempts):
         try:
             shutil.rmtree(path)
