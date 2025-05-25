@@ -1,4 +1,5 @@
 chrome: "C:/Program Files/Google/Chrome/Application/chrome.exe"
-firefox: "C:/Program Files/Mozilla Firefox/firefox.exe"
 brave: "C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"
+edge: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+firefox: "C:/Program Files/Mozilla Firefox/firefox.exe"
 safari: "/Applications/Safari.app"
