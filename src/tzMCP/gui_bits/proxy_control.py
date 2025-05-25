@@ -54,6 +54,7 @@ class ProxyController:
             "--set", "console_eventlog_verbosity=info",  # Control mitmdump log output level to term
             "--listen-host", "127.0.0.1",                # Only allow local connection
             "--listen-port", str(self.proxy_port),
+            "--set", "http2=true",                       # Force HTTP/2 to be more browser like.
             "-s", str(script_path),
         ]
         print("[DEBUG] Launching proxy:", " ".join(cmd))
