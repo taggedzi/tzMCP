@@ -51,7 +51,8 @@ class ProxyController:
             str(self._mitmdump_exe()), 
             "-q",  # quiet mitmdump output
             # "--set", "console_eventlog=false", # suppress INFO flood
-            "--set", "console_eventlog_verbosity=info",  # <== ADD THIS
+            "--set", "console_eventlog_verbosity=info",  # Control mitmdump log output level to term
+            "--listen-host", "127.0.0.1",                # Only allow local connection
             "--listen-port", str(self.proxy_port),
             "-s", str(script_path),
         ]
