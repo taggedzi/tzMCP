@@ -23,7 +23,7 @@ This plan outlines a step-by-step strategy to harden the security and improve th
 
 * [x] Migrate config watcher to `watchdog`.
 * [x] Avoid excessive polling or reloads.
-* [x] Add a small debounce buffer (e.g., 250ms) to coalesce edits.
+* [ ] Add a small debounce buffer (e.g., 250ms) to coalesce edits.
 
 #### **Step 4: Guard Against Path Traversals / Write Abuse**
 
