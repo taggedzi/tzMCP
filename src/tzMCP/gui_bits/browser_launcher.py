@@ -6,6 +6,15 @@ from pathlib import Path
 from typing import Optional, Tuple
 import psutil
 import time
+import importlib
+
+
+PLUGIN_MAP = {
+    "chrome": "tzMCP.browser_plugins.chrome",
+    "firefox": "tzMCP.browser_plugins.firefox",
+    # we’ll add more later
+}
+
 
 APP_PROFILE_BASE = Path(__file__).parent.parent.parent.parent / "profiles"
 APP_PROFILE_BASE.mkdir(parents=True, exist_ok=True)
@@ -27,24 +36,19 @@ def launch_browser(
     if not path.exists():
         raise FileNotFoundError(f"Browser executable not found: {path}")
 
-    cmd = [str(path)]
-    name = path.stem.lower()
-    profile_path = get_browser_profile_dir(name)
+    browser_name = path.stem.lower()
+    plugin_map = {
+        "chrome": "tzMCP.browser_plugins.chrome",
+        "firefox": "tzMCP.browser_plugins.firefox"
+    }
 
-    if "firefox" in name:
-        cmd += ["-profile", str(profile_path)]
-        if incognito:
-            cmd.append("-private-window")
-        _write_firefox_userjs(profile_path, proxy_port)
-    else:
-        cmd += [
-            f"--proxy-server=127.0.0.1:{proxy_port}",
-            f"--user-data-dir={str(profile_path)}",
-        ]
-        if incognito:
-            cmd.append("--incognito")
+    plugin_module_path = plugin_map.get(browser_name)
+    if not plugin_module_path:
+        raise NotImplementedError(f"No plugin handler for browser '{browser_name}'")
 
-    cmd.append(url)
+    plugin = importlib.import_module(plugin_module_path)
+    cmd, profile_path = plugin.setup_browser(path, url, proxy_port, incognito)
+
     print("Launching:", " ".join(f'\"{c}\"' if ' ' in c else c for c in cmd))
 
     kwargs = {}
