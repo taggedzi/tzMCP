@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from time import perf_counter
 from mitmproxy import http, ctx
+from threading import Timer
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from tzMCP.gui_bits.config_manager import ConfigManager, Config
@@ -34,6 +35,7 @@ class MediaSaver:
         # Setup Config Manager
         self.cfg_manager = ConfigManager(self.config_path)
         self.config = Config()   # Start with empty config
+        self._reload_timer = None
         self._observer = None
         self._load_config()      # Load the config file and share with other files in real time.
         self._start_watcher()    # Setup Watchdog to monitor the config file for updates.
@@ -72,9 +74,15 @@ class MediaSaver:
             log("error", "red", f"Failed to start config watcher: {e}")
 
     def _on_config_change(self):
+        if self._reload_timer and self._reload_timer.is_alive():
+            self._reload_timer.cancel()
+        self._reload_timer = Timer(0.25, self._debounced_reload)
+        self._reload_timer.start()
+        
+    def _debounced_reload(self):
         self._load_config()
-        ctx.log.info("🔄 Config reloaded via watcher.")
-        log("info", "blue", "🔄 Config reloaded via watcher.")
+        ctx.log.info("🔄 Config reloaded via debounced watcher.")
+        log("info", "blue", "🔄 Config reloaded via debounced watcher.")
 
     def done(self):
         """Called when mitmproxy shuts down."""
