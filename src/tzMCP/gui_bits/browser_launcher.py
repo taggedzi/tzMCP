@@ -9,13 +9,6 @@ import time
 import importlib
 
 
-PLUGIN_MAP = {
-    "chrome": "tzMCP.browser_plugins.chrome",
-    "firefox": "tzMCP.browser_plugins.firefox",
-    # we’ll add more later
-}
-
-
 APP_PROFILE_BASE = Path(__file__).parent.parent.parent.parent / "profiles"
 APP_PROFILE_BASE.mkdir(parents=True, exist_ok=True)
 
@@ -61,6 +54,7 @@ def launch_browser(
         "brave": "tzMCP.browser_plugins.brave",
         "opera": "tzMCP.browser_plugins.opera",
         "iron": "tzMCP.browser_plugins.iron",
+        "vivaldi": "tzMCP.browser_plugins.vivaldi",
     }
 
     plugin_module_path = plugin_map.get(browser_name)
