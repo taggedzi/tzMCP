@@ -15,8 +15,10 @@ from urllib.parse import urlparse
 from mitmproxy import ctx
 from threading import Thread
 from tempfile import NamedTemporaryFile
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 ENABLE_PERFORMANCE_CHECK = True
+SENSITIVE_KEYS = {"token", "access_token", "auth", "session", "key"}
 
 # ----------------------------------
 # Utility functions
@@ -82,6 +84,14 @@ def detect_mime(data: bytes) -> str:
             return magic.from_buffer(data, mime=True)
         except Exception:
             return "application/octet-stream"
+        
+def sanitize_url(url: str) -> str:
+    """Strip or redact sensitive query params from URLs."""
+    parsed = urlparse(url)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    redacted = [(k, "[REDACTED]" if k.lower() in SENSITIVE_KEYS else v) for k, v in query]
+    clean_query = urlencode(redacted)
+    return urlunparse(parsed._replace(query=clean_query))
 
 def is_mime_type_allowed(mime_type: str, fname: str = None) -> bool:
     """Check if MIME type is in one of the allowed MIME groups."""
@@ -130,7 +140,7 @@ def is_domain_blocked_by_whitelist(url:str, fname:str = None):
         netloc = urlparse(url).hostname or ""
         if not any(domain in netloc for domain in config.whitelist):
             log("warn", "orange",
-                f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain not in whitelist.")
+                f"⏭ Skipped {fname}", f"\tURL: {sanitize_url(url)}", "\tReason: domain not in whitelist.")
             response = True
     log_duration("is_domain_blocked_by_whitelist() ", start_is_domain_blocked_by_whitelist_check)
     return response
@@ -148,7 +158,7 @@ def is_domain_blacklisted(url:str, fname:str = None):
         netloc = urlparse(url).hostname or ""
         if any(domain in netloc for domain in config.blacklist):
             log("warn", "orange",
-                f"⏭ Skipped {fname}", f"\tURL: {url}", "\tReason: domain in blacklist.")
+                f"⏭ Skipped {fname}", f"\tURL: {sanitize_url(url)}", "\tReason: domain in blacklist.")
             response = True
     log_duration("is_domain_blacklisted() ", start_is_domian_blacklisted_check)
     return response
@@ -192,10 +202,10 @@ def does_header_match_size(content_length, actual, url):
         try:
             expected = int(content_length)
             if expected != actual:
-                log("error", "red", f"⛔ Content-Length mismatch: expected {expected}, got {actual}", f"\tURL: {url}")
+                log("error", "red", f"⛔ Content-Length mismatch: expected {expected}, got {actual}", f"\tURL: {sanitize_url(url)}")
                 response = False
         except ValueError:
-            log("error","red", f"⚠ Invalid Content-Length header: {content_length}", f"\tURL: {url}")
+            log("error","red", f"⚠ Invalid Content-Length header: {content_length}", f"\tURL: {sanitize_url(url)}")
     return response
 
 
