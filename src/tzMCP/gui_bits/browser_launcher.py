@@ -39,7 +39,9 @@ def launch_browser(
     browser_name = path.stem.lower()
     plugin_map = {
         "chrome": "tzMCP.browser_plugins.chrome",
-        "firefox": "tzMCP.browser_plugins.firefox"
+        "firefox": "tzMCP.browser_plugins.firefox",
+        "brave": "tzMCP.browser_plugins.brave",
+        "opera": "tzMCP.browser_plugins.opera"
     }
 
     plugin_module_path = plugin_map.get(browser_name)
