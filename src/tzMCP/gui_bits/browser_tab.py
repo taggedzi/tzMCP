@@ -1,53 +1,82 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
+import yaml
+from tzMCP.gui_bits.browser_launcher import launch_browser
 
-from tzMCP.gui_bits.browser_launcher import launch_browser, LAUNCH_COMMANDS
-from tzMCP.gui_bits.proxy_control import ProxyController
-
+CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "browser_paths.yaml"
 
 class BrowserTab(ttk.Frame):
-    """Tab for launching browsers through the proxy."""
-    def __init__(self, parent, proxy_controller: ProxyController):
-        super().__init__(parent)
+    def __init__(self, master, proxy_controller):
+        super().__init__(master)
         self.proxy_controller = proxy_controller
-        self._build_ui()
 
-    def _build_ui(self):
-        ttk.Label(self, text="Browser:").grid(row=0, column=0, padx=5, pady=5)
-        self.browser_var = tk.StringVar()
-        browsers = list(LAUNCH_COMMANDS.keys())
-        self.browser_combo = ttk.Combobox(self, textvariable=self.browser_var, values=browsers, state='readonly')
-        if browsers:
-            self.browser_combo.current(0)
-        self.browser_combo.grid(row=0, column=1, sticky='ew')
+        self.browser_paths = self._load_browser_paths()
+        self.selected_browser = tk.StringVar()
+        self.launch_url = tk.StringVar(value="http://mitm.it")
+        self.use_incognito = tk.BooleanVar(value=False)
 
-        ttk.Label(self, text="URL:").grid(row=1, column=0, padx=5, pady=5)
-        self.url_var = tk.StringVar(value="http://mitm.it")
-        ttk.Entry(self, textvariable=self.url_var).grid(row=1, column=1, columnspan=2, sticky='ew')
+        self._build_widgets()
 
-        ttk.Label(self, text="Profile Dir:").grid(row=2, column=0, padx=5, pady=5)
-        self.profile_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.profile_var).grid(row=2, column=1, sticky='ew')
-        ttk.Button(self, text="Browse...", command=self._browse).grid(row=2, column=2)
+    def _build_widgets(self):
+        row = 0
 
-        ttk.Button(self, text="Launch", command=self._launch).grid(row=3, column=0, columnspan=3, pady=10)
+        ttk.Label(self, text="Select Browser:").grid(row=row, column=0, sticky="e")
+        self.browser_menu = ttk.OptionMenu(self, self.selected_browser, None, *self.browser_paths.keys())
+        self.browser_menu.grid(row=row, column=1, sticky="ew")
 
-        for i in range(3):
-            self.columnconfigure(i, weight=1)
+        row += 1
+        ttk.Label(self, text="Launch URL:").grid(row=row, column=0, sticky="e")
+        ttk.Entry(self, textvariable=self.launch_url, width=40).grid(row=row, column=1, sticky="ew")
 
-    def _browse(self):
-        path = filedialog.askdirectory()
-        if path:
-            self.profile_var.set(path)
+        row += 1
+        ttk.Checkbutton(self, text="Private / Incognito Mode", variable=self.use_incognito).grid(row=row, columnspan=2, sticky="w")
 
-    def _launch(self):
+        row += 1
+        ttk.Button(self, text="Launch Browser", command=self._launch_browser).grid(row=row, columnspan=2, pady=5)
+
+        row += 1
+        ttk.Button(self, text="Add Portable Browser...", command=self._add_browser).grid(row=row, columnspan=2)
+
+        self.columnconfigure(1, weight=1)
+
+    def _load_browser_paths(self):
+        if CONFIG_PATH.exists():
+            with CONFIG_PATH.open("r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        return {}
+
+    def _save_browser_paths(self):
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with CONFIG_PATH.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(self.browser_paths, f)
+
+    def _add_browser(self):
+        path = filedialog.askopenfilename(title="Select Browser Executable")
+        if not path:
+            return
+        name = Path(path).stem.lower()
+        if name in self.browser_paths:
+            if not messagebox.askyesno("Overwrite?", f"A browser named '{name}' already exists. Overwrite?"):
+                return
+        self.browser_paths[name] = path
+        self._save_browser_paths()
+        self._refresh_browser_menu()
+        self.selected_browser.set(name)
+
+    def _refresh_browser_menu(self):
+        menu = self.browser_menu["menu"]
+        menu.delete(0, "end")  # pylint: disable=no-member
+        for name in self.browser_paths:
+            menu.add_command(label=name, command=lambda v=name: self.selected_browser.set(v))  # pylint: disable=no-member
+
+    def _launch_browser(self):
+        name = self.selected_browser.get()
+        path = self.browser_paths.get(name)
+        if not path:
+            messagebox.showerror("Error", f"Browser path for '{name}' not found.")
+            return
         try:
-            launch_browser(
-                self.browser_var.get(),
-                self.url_var.get(),
-                proxy_port=self.proxy_controller.proxy_port,
-                user_data_dir=Path(self.profile_var.get()) if self.profile_var.get() else None
-            )
+            launch_browser(Path(path), self.launch_url.get(), self.proxy_controller.proxy_port, self.use_incognito.get())
         except Exception as e:
-            messagebox.showerror("Error", f"{e}")
+            messagebox.showerror("Launch Failed", str(e))

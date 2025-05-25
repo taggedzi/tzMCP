@@ -11,12 +11,14 @@ from tzMCP.gui_bits.config_tab import ConfigTab
 from tzMCP.gui_bits.status_bar import StatusBar
 from tzMCP.gui_bits.domain_tab import DomainTab
 from tzMCP.gui_bits.log_server import start_gui_log_server
+from tzMCP.gui_bits.browser_launcher import cleanup_browsers
 
 class MainApp(tk.Tk):
     """Main application window, orchestrating all tabs and status bar."""
     def __init__(self):
         super().__init__()
-        self.title("Media Download Proxy Controller")
+        self.title("tzMCP Media Capture Proxy")
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # Initialize controllers (always use project/config/media_proxy_config.yaml)
         project_root       = Path(__file__).parent.parent.parent
@@ -91,6 +93,7 @@ class MainApp(tk.Tk):
                 self.proxy_tab.log.config(state='disabled')
         except Exception:
             pass
+        cleanup_browsers()
         self.destroy()
 
     def run(self):

@@ -7,6 +7,7 @@ import toml
 from pathlib import Path
 import subprocess
 from invoke import task
+import tempfile
 
 PYPROJECT_PATH = Path("pyproject.toml")
 INIT_PATH = Path("src/tzMCP/__init__.py")
@@ -174,3 +175,24 @@ def clean_pycache(c, root="."):
         f"[clean-pycache] removed {removed_dirs} __pycache__ director"
         f"ies and {removed_files} stray *.pyc files under {root_path}"
     )
+    
+    
+@task
+def clean_browser_profiles(c):
+    """
+    Remove old temp proxy profiles for Firefox, Chrome, Edge, etc.
+    """
+    temp = Path(tempfile.gettempdir())
+    removed = 0
+    for folder in temp.iterdir():
+        if folder.is_dir() and any(key in folder.name.lower() for key in ["proxy", "profile", "chrome", "firefox", "edge"]):
+            try:
+                shutil.rmtree(folder, ignore_errors=True)
+                print(f"🧹 Removed: {folder}")
+                removed += 1
+            except Exception as e:
+                print(f"⚠️ Failed to remove {folder}: {e}")
+    if removed == 0:
+        print("✅ No matching temp profile folders found.")
+    else:
+        print(f"✅ Finished cleanup: {removed} folder(s) removed.")
