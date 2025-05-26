@@ -17,6 +17,5 @@ filter_file_size:
   min_bytes: 800
   max_bytes: 157286400
 log_to_file: true
-log_internal_debug: true
-log_seen_domains: true
+log_level: INFO
 auto_reload_config: true

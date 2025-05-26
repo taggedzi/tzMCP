@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
 import queue
-from tzMCP.save_media_utils.save_media_utils import log
 from tzMCP.gui_bits.config_manager import ConfigManager
 from tzMCP.gui_bits.proxy_control import ProxyController
 from tzMCP.gui_bits.proxy_tab import ProxyTab
@@ -12,6 +11,8 @@ from tzMCP.gui_bits.status_bar import StatusBar
 from tzMCP.gui_bits.domain_tab import DomainTab
 from tzMCP.gui_bits.log_server import start_gui_log_server
 from tzMCP.gui_bits.browser_launcher import cleanup_browsers
+from tzMCP.common_utils.log_config import setup_logging, log_gui
+setup_logging()
 
 class MainApp(tk.Tk):
     """Main application window, orchestrating all tabs and status bar."""
@@ -75,7 +76,7 @@ class MainApp(tk.Tk):
         notebook.add(browser_tab, text="Browser Launch")
 
         # Configuration tab
-        self.config_manager.set_logger(log)
+        self.config_manager.set_logger(log_gui)
         config_tab = ConfigTab(notebook, self.config_manager, self.config)
         notebook.add(config_tab, text="Configuration")
 

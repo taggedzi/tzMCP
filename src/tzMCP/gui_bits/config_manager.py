@@ -24,8 +24,7 @@ class Config:
         "max_bytes": 157286400
     })
     log_to_file: bool = False
-    log_internal_debug: bool = True
-    log_seen_domains: bool = True
+    log_level: str = "INFO"
     auto_reload_config: bool = True
 
 

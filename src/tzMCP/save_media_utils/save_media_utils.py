@@ -1,30 +1,22 @@
-from io import BytesIO
-from pathlib import Path
+# pylint: disable=logging-fstring-interpolation,redefined-outer-name,broad-exception-caught
 import hashlib
-import json
 import os
 import re
 import time
-import yaml
-from PIL import Image
-import requests
-import magic
-from time import perf_counter
-from tzMCP.save_media_utils.config_provider import get_config
-from urllib.parse import urlparse
-from mitmproxy import ctx
-from threading import Thread
+from io import BytesIO
+from pathlib import Path
 from tempfile import NamedTemporaryFile
+from time import perf_counter
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 import filetype
+from PIL import Image
+from tzMCP.save_media_utils.config_provider import get_config
 from tzMCP.save_media_utils.mime_data_minimal import MIME_TO_EXTENSIONS
 from tzMCP.save_media_utils.mime_categories import MIME_GROUPS
-import mimetypes
 from tzMCP.common_utils.log_config import setup_logging, log_proxy
 
 # Configure log_proxy
 setup_logging()
-
 
 ENABLE_PERFORMANCE_CHECK = True
 SENSITIVE_KEYS = {"token", "access_token", "auth", "session", "key"}
@@ -40,37 +32,13 @@ for mime, extensions in MIME_TO_EXTENSIONS.items():
 # ----------------------------------
 
 def log_duration(label, start_time):
+    """log performance tests."""
     if ENABLE_PERFORMANCE_CHECK:
         duration = time.perf_counter() - start_time
-        log("debug", "blue", f"[PROFILE] {label} took {duration:.4f}s")
-
-def send_log_to_gui(entry):
-    def _post():
-        try:
-            requests.post("http://localhost:5001", json=entry, timeout=0.1)
-        except requests.exceptions.RequestException:
-            pass
-    Thread(target=_post, daemon=True).start()
-
-def log(level: str, color: str, *lines: str):
-    config = get_config()
-    if level.lower() == "debug" and not config.log_internal_debug:
-        return
-
-    # Console + GUI
-    print("\n".join(lines), flush=True)
-    send_log_to_gui({
-        "color": color,
-        "weight": "bold",
-        "lines": list(lines)
-    })
-
-    # Python logging backend
-    message = " ".join(lines)
-    getattr(log_proxy, level.lower(), log_proxy.info)(message)
-
+        log_proxy.debug(f"[PROFILE] {label} took {duration:.4f}s")
 
 def sanitize_filename(filename: str, fallback_url: str = "") -> str:
+    """Check filenames for bad/malformed/corrupt/malicious data."""
     name = re.sub(r"[^\w\-_. ]", "_", filename)
     name = re.sub(r"\s+", "_", name.strip())
     name = name[:255]
@@ -82,10 +50,11 @@ def sanitize_filename(filename: str, fallback_url: str = "") -> str:
     if not name or name.upper() in WINDOWS_RESERVED_NAMES:
         hash_val = hashlib.sha256(fallback_url.encode()).hexdigest()[:12]
         name = f"file_{hash_val}"
-        log("warning", "red", f"File name {filename} is a reserved windows name.", f"\tIt has been renamed: {name}")
+        log_proxy.info(f"File name {filename} is a reserved windows name. It has been renamed: {name}")
     return name
 
 def safe_filename(raw_name: str, ext: str, fallback_url: str = "") -> str:
+    """Make a file name safe to use. if possible."""
     if not raw_name or "." not in raw_name:
         raw_name = f"file_{int(time.time() * 1000)}{ext}"
     elif not os.path.splitext(raw_name)[1]:
@@ -103,20 +72,23 @@ def detect_mime_and_extension(byte_data: bytes, fallback_url: str = "") -> tuple
         base = os.path.basename(fallback_url.split("?", 1)[0])
         ext = os.path.splitext(base)[1].lower()
         if ext in EXTENSION_TO_MIME:
-            log("info", "blue", f"URL extension found: {ext}. Using MIME type: {EXTENSION_TO_MIME[ext]}")
+            log_proxy.info(f"URL extension found: {ext}. Using MIME type: {EXTENSION_TO_MIME[ext]}")
             return EXTENSION_TO_MIME[ext], ext
-
+    log_proxy.debug("No extension found in url.")
+        
     # --- Step 2: Fallback to content-based detection ---
     kind = filetype.guess(byte_data)
     if kind:
         mime = kind.mime
         extensions = MIME_TO_EXTENSIONS.get(mime)
         ext = f".{kind.extension}" if not extensions else extensions[0]
-        log("info", "blue", f"Filetype tested as: {ext}. Using MIME type: {mime}")
+        log_proxy.info(f"Filetype tested as: {ext}. Using MIME type: {mime}")
         return mime, ext
+    
+    log_proxy.debug("No mime or extension found via 'filetype' guessing.")
 
     # --- Final fallback ---
-    log("warning", "orange", "No extension determined.")
+    log_proxy.info("No extension determined autoassign '.bin'.")
     return "application/octet-stream", ".bin"
 
 def sanitize_url(url: str) -> str:
@@ -138,7 +110,7 @@ def is_mime_type_allowed(mime_type: str, fname: str = None) -> bool:
 
     result = True
     if mime_type not in allowed_types:
-        log("warning", "orange", f"⏭ Skipped file {fname}", f"\tReason: MIME type {mime_type} not allowed.")
+        log_proxy.info(f"⏭ Skipped file {fname} Reason: MIME type {mime_type} not allowed.")
         result = False
 
     log_duration("is_mime_type_allowed()", start_check)
@@ -154,8 +126,7 @@ def is_file_size_out_of_bounds(size:int, fname:str = None):
         min_b = config.filter_file_size["min_bytes"]
         max_b = config.filter_file_size["max_bytes"]
         if not min_b <= size <= max_b:
-            log("warning", "orange",
-                f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
+            log_proxy.info(f"⏭ Skipped {fname} Reason: {size} b not between [{min_b},{max_b}] bytes.")
             response = True
     log_duration("is_file_size_out_of_bounds() ", start_is_domain_blocked_by_whitelist_check)
     return response
@@ -172,8 +143,7 @@ def is_domain_blocked_by_whitelist(url:str, fname:str = None):
     if config.whitelist:
         netloc = urlparse(url).hostname or ""
         if not any(domain in netloc for domain in config.whitelist):
-            log("warning", "orange",
-                f"⏭ Skipped {fname}", f"\tURL: {sanitize_url(url)}", "\tReason: domain not in whitelist.")
+            log_proxy.info(f"⏭ Skipped {fname} URL: {sanitize_url(url)} Reason: domain not in whitelist.")
             response = True
     log_duration("is_domain_blocked_by_whitelist() ", start_is_domain_blocked_by_whitelist_check)
     return response
@@ -190,13 +160,13 @@ def is_domain_blacklisted(url:str, fname:str = None):
     if config.blacklist:
         netloc = urlparse(url).hostname or ""
         if any(domain in netloc for domain in config.blacklist):
-            log("warning", "orange",
-                f"⏭ Skipped {fname}", f"\tURL: {sanitize_url(url)}", "\tReason: domain in blacklist.")
+            log_proxy.info(f"⏭ Skipped {fname} URL: {sanitize_url(url)} Reason: domain in blacklist.")
             response = True
     log_duration("is_domain_blacklisted() ", start_is_domian_blacklisted_check)
     return response
 
 def is_valid_image(content: bytes):
+    """Use the image library to determine if a content blob is a legitimate image."""
     start_is_valid_image_check = perf_counter()
     response = False
     try:
@@ -204,12 +174,13 @@ def is_valid_image(content: bytes):
         img.verify()  # Verify header-only, no full decode
         response = True
     except Exception:
-        log("warning", "orange", "Not a valid image.")
+        log_proxy.info("Not a valid image.")
         response = False
     log_duration("is_valid_image() ", start_is_valid_image_check)
     return response
 
 def is_image_size_out_of_bounds(content: bytes, fname: str = None):
+    """Check the size of an image and see if we want it."""
     start_is_image_size_out_of_bounds_check = perf_counter()
     response = False
     config = get_config()
@@ -222,10 +193,10 @@ def is_image_size_out_of_bounds(content: bytes, fname: str = None):
             min_h = config.filter_pixel_dimensions.get("min_height", 1)
             max_h = config.filter_pixel_dimensions.get("max_height", 999999)
             if w < min_w or w > max_w or h < min_h or h > max_h:
-                log("warning", "orange", f"⏭ Skipped file {fname}", f"\tReason: ({w}x{h} not in allowed ranges)")
+                log_proxy.info(f"⏭ Skipped file {fname} Reason: ({w}x{h} not in allowed ranges)")
                 response = True
         except Exception as e:
-            log("error", "red", f"⛔ Pixel check failed: {e}")
+            log_proxy.error(f"⛔ Pixel check failed: {e}")
     log_duration("is_image_size_out_of_bounds() ", start_is_image_size_out_of_bounds_check)
     return response
 
@@ -236,29 +207,29 @@ def does_header_match_size(content_length, actual, url):
         try:
             expected = int(content_length)
             if expected != actual:
-                log("error", "red", f"⛔ Content-Length mismatch: expected {expected}, got {actual}", f"\tURL: {sanitize_url(url)}")
+                log_proxy.warning(f"⛔ Content-Length mismatch: expected {expected}, got {actual} URL: {sanitize_url(url)}")
                 response = False
         except ValueError:
-            log("error","red", f"⚠ Invalid Content-Length header: {content_length}", f"\tURL: {sanitize_url(url)}")
+            log_proxy.error(f"⚠ Invalid Content-Length header: {content_length} URL: {sanitize_url(url)}")
     return response
 
-
 def cleanup_temp_file(tmp_path: Path):
+    """Remove the temp files crated by browser profiles."""
     if tmp_path and tmp_path.exists():
         try:
             tmp_path.unlink()
-            log("debug", "grey", f"🧹 Cleaned up temp file → {tmp_path}")
+            log_proxy.info(f"🧹 Cleaned up temp file → {tmp_path}")
         except Exception as cleanup_error:
-            log("error", "red", f"⚠ Failed to clean up temp file: {cleanup_error}")
+            log_proxy.error(f"⚠ Failed to clean up temp file: {cleanup_error}")
             
-
 def is_directory_traversal_attempted(save_path:str):
+    """Check to see if a file or url is trying to do directory traversal"""
     start_check = perf_counter()
     response = False
     config = get_config()
     
     if not str(save_path).startswith(str(config.save_dir.resolve())):
-        log("error", "red", f"❌ Security error: attempted path traversal blocked → {save_path}")
+        log_proxy.critical(f"❌ Security error this file attempted path traversal blocked → {save_path}")
         response = True
     else:
         # Ensure save directory exists
@@ -284,16 +255,16 @@ def atomic_save(content: bytes, save_path: Path, size: int):
             counter += 1
 
         os.replace(tmp_path, final_path)
-        log("info", "green", f"💾 Saved → {final_path} ({size} B)")
+        log_proxy.info(f"💾 Saved → {final_path} ({size} B)")
 
     except PermissionError:
-        log("error", "red", f"❌ Permission denied: {save_path}")
+        log_proxy.error(f"❌ Permission denied: {save_path}")
         cleanup_temp_file(tmp_path)
 
     except OSError as e:
-        log("error", "red", f"❌ OS error while saving: {e}")
+        log_proxy.error(f"❌ OS error while saving: {e}")
         cleanup_temp_file(tmp_path)
 
     except Exception as e:
-        log("error", "red", f"❌ Unexpected save failure: {e}")
+        log_proxy.error(f"❌ Unexpected save failure: {e}")
         cleanup_temp_file(tmp_path)
