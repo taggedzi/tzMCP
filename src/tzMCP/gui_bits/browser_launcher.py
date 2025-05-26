@@ -35,6 +35,8 @@ def detect_browser_name(path: Path) -> str:
         return "chrome"
     if "k-meleon" in lower_path:
         return "kmeleon"
+    if "librewolf" in lower_path:
+        return "librewolf"
     raise ValueError(f"Unknown browser type for path: {path}")
 
 def launch_browser(
@@ -57,6 +59,7 @@ def launch_browser(
         "iron": "tzMCP.browser_plugins.iron",
         "vivaldi": "tzMCP.browser_plugins.vivaldi",
         "kmeleon": "tzMCP.browser_plugins.kmeleon",
+        "librewolf": "tzMCP.browser_plugins.librewolf",
     }
 
     plugin_module_path = plugin_map.get(browser_name)
