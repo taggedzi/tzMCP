@@ -8,7 +8,6 @@ import psutil
 import time
 import importlib
 
-
 APP_PROFILE_BASE = Path(__file__).parent.parent.parent.parent / "profiles"
 APP_PROFILE_BASE.mkdir(parents=True, exist_ok=True)
 
@@ -34,6 +33,8 @@ def detect_browser_name(path: Path) -> str:
         return "firefox"
     if "chrome" in lower_path:
         return "chrome"
+    if "k-meleon" in lower_path:
+        return "kmeleon"
     raise ValueError(f"Unknown browser type for path: {path}")
 
 def launch_browser(
@@ -55,6 +56,7 @@ def launch_browser(
         "opera": "tzMCP.browser_plugins.opera",
         "iron": "tzMCP.browser_plugins.iron",
         "vivaldi": "tzMCP.browser_plugins.vivaldi",
+        "kmeleon": "tzMCP.browser_plugins.kmeleon",
     }
 
     plugin_module_path = plugin_map.get(browser_name)
