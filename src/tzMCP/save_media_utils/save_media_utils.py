@@ -16,9 +16,20 @@ from mitmproxy import ctx
 from threading import Thread
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+import filetype
+from tzMCP.save_media_utils.mime_data_minimal import MIME_TO_EXTENSIONS
+import mimetypes
+
+
 
 ENABLE_PERFORMANCE_CHECK = True
 SENSITIVE_KEYS = {"token", "access_token", "auth", "session", "key"}
+
+# Inverted map: ext -> mime
+EXTENSION_TO_MIME = {}
+for mime, extensions in MIME_TO_EXTENSIONS.items():
+    for ext in extensions:
+        EXTENSION_TO_MIME[ext.lower()] = mime
 
 # ----------------------------------
 # Utility functions
@@ -85,6 +96,31 @@ def detect_mime(data: bytes) -> str:
         except Exception:
             return "application/octet-stream"
         
+def detect_mime_and_extension(byte_data: bytes, fallback_url: str = "") -> tuple[str, str]:
+    """
+    Try to detect the MIME type and extension:
+    1. From the URL's extension first (most reliable for plain/text)
+    2. Fallback to filetype-based guessing
+    """
+    # --- Step 1: Try based on URL extension ---
+    if fallback_url:
+        base = os.path.basename(fallback_url.split("?", 1)[0])
+        ext = os.path.splitext(base)[1].lower()
+        if ext in EXTENSION_TO_MIME:
+            return EXTENSION_TO_MIME[ext], ext
+
+    # --- Step 2: Fallback to content-based detection ---
+    kind = filetype.guess(byte_data)
+    if kind:
+        mime = kind.mime
+        extensions = MIME_TO_EXTENSIONS.get(mime)
+        ext = f".{kind.extension}" if not extensions else extensions[0]
+        return mime, ext
+
+    # --- Final fallback ---
+    return "application/octet-stream", ".bin"
+
+        
 def sanitize_url(url: str) -> str:
     """Strip or redact sensitive query params from URLs."""
     parsed = urlparse(url)
@@ -97,7 +133,7 @@ def is_mime_type_allowed(mime_type: str, fname: str = None) -> bool:
     """Check if MIME type is in one of the allowed MIME groups."""
     start_check = perf_counter()
     config = get_config()
-    from tzMCP.gui_bits.config_manager import MIME_GROUPS
+    from tzMCP.save_media_utils.mime_categories import MIME_GROUPS
 
     allowed_types = set()
     for group in config.allowed_mime_groups:

@@ -2,15 +2,8 @@ from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 import yaml
+from tzMCP.save_media_utils.mime_categories import MIME_GROUPS
 
-MIME_GROUPS = {
-    "image": ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/bmp", "image/tiff"],
-    "video": ["video/mp4", "video/webm", "video/ogg", "video/quicktime"],
-    "audio": ["audio/mpeg", "audio/wav", "audio/ogg"],
-    "text": ["text/plain", "text/html", "text/css", "text/javascript", "application/json", "application/xml"],
-    "document": ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-    "code": ["application/javascript", "application/x-python-code", "text/x-python"],
-}
 
 @dataclass
 class Config:

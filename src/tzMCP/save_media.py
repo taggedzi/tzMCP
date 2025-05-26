@@ -1,4 +1,3 @@
-from mimetypes import guess_extension
 import os
 from pathlib import Path
 from time import perf_counter
@@ -8,12 +7,15 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from tzMCP.gui_bits.config_manager import ConfigManager, Config
 from tzMCP.save_media_utils import config_provider
+from tzMCP.save_media_utils.mime_categories import (
+    IMAGE_TYPES, VIDEO_TYPES, AUDIO_TYPES, TEXT_TYPES, DOCUMENT_TYPES, EXECUTABLE_TYPES
+)
 from tzMCP.save_media_utils.save_media_utils import (
-    log_duration, safe_filename, detect_mime, log,
+    log_duration, safe_filename, log,
     is_valid_image, is_mime_type_allowed, is_file_size_out_of_bounds,
     is_domain_blocked_by_whitelist, is_domain_blacklisted,
     is_image_size_out_of_bounds, does_header_match_size,
-    is_directory_traversal_attempted, atomic_save
+    is_directory_traversal_attempted, atomic_save, detect_mime_and_extension
 )
 
 class ConfigChangeHandler(FileSystemEventHandler):
@@ -100,9 +102,8 @@ class MediaSaver:
 
         clean_url = url.split("?", 1)[0]
         basename = os.path.basename(clean_url)
-        ext = os.path.splitext(basename)[1] or guess_extension(flow.response.headers.get("content-type", "").split(";")[0]) or ".bin"
+        mime_type, ext = detect_mime_and_extension(content, fallback_url=url)
         fname = safe_filename(basename, ext, fallback_url=url)
-        mime_type = detect_mime(content)
         log('info', "brown", f"{fname} -> {mime_type}, {size} bytes")
 
         if (not does_header_match_size(flow.response.headers.get("Content-Length"), size, url) or 
@@ -112,8 +113,10 @@ class MediaSaver:
             is_domain_blacklisted(url, fname)):
             return
         
-        if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
-            return
+        if mime_type in IMAGE_TYPES:
+            if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
+                return
+
 
         save_path = (self.config.save_dir / fname).resolve()
         if not is_directory_traversal_attempted(save_path):
