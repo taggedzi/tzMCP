@@ -1,4 +1,4 @@
-# pylint: disable=logging-fstring-interpolation,redefined-outer-name,broad-exception-caught
+# pylint: disable=logging-fstring-interpolation,redefined-outer-name,broad-exception-caught,line-too-long,invalid-name
 import hashlib
 import os
 import re
@@ -18,9 +18,9 @@ from tzMCP.common_utils.log_config import setup_logging, log_proxy
 # Configure log_proxy
 setup_logging()
 
+# Setup file Constants
 ENABLE_PERFORMANCE_CHECK = True
 SENSITIVE_KEYS = {"token", "access_token", "auth", "session", "key"}
-
 # Inverted map: ext -> mime
 EXTENSION_TO_MIME = {}
 for mime, extensions in MIME_TO_EXTENSIONS.items():
@@ -75,7 +75,7 @@ def detect_mime_and_extension(byte_data: bytes, fallback_url: str = "") -> tuple
             log_proxy.info(f"URL extension found: {ext}. Using MIME type: {EXTENSION_TO_MIME[ext]}")
             return EXTENSION_TO_MIME[ext], ext
     log_proxy.debug("No extension found in url.")
-        
+
     # --- Step 2: Fallback to content-based detection ---
     kind = filetype.guess(byte_data)
     if kind:
@@ -84,7 +84,7 @@ def detect_mime_and_extension(byte_data: bytes, fallback_url: str = "") -> tuple
         ext = f".{kind.extension}" if not extensions else extensions[0]
         log_proxy.info(f"Filetype tested as: {ext}. Using MIME type: {mime}")
         return mime, ext
-    
+
     log_proxy.debug("No mime or extension found via 'filetype' guessing.")
 
     # --- Final fallback ---
@@ -221,13 +221,13 @@ def cleanup_temp_file(tmp_path: Path):
             log_proxy.info(f"🧹 Cleaned up temp file → {tmp_path}")
         except Exception as cleanup_error:
             log_proxy.error(f"⚠ Failed to clean up temp file: {cleanup_error}")
-            
+
 def is_directory_traversal_attempted(save_path:str):
     """Check to see if a file or url is trying to do directory traversal"""
     start_check = perf_counter()
     response = False
     config = get_config()
-    
+
     if not str(save_path).startswith(str(config.save_dir.resolve())):
         log_proxy.critical(f"❌ Security error this file attempted path traversal blocked → {save_path}")
         response = True
