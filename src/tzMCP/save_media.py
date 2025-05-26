@@ -17,6 +17,8 @@ from tzMCP.save_media_utils.save_media_utils import (
     is_image_size_out_of_bounds, does_header_match_size,
     is_directory_traversal_attempted, atomic_save, detect_mime_and_extension
 )
+from tzMCP.common_utils.log_config import setup_logging, log_proxy
+
 
 class ConfigChangeHandler(FileSystemEventHandler):
     def __init__(self, callback):
@@ -32,17 +34,24 @@ class MediaSaver:
         # Setup Pathing
         self.project_root = Path(__file__).parent.parent.parent
         self.config_path = self.project_root / "config" / "media_proxy_config.yaml"
-        self.log_path = self.project_root / "logs" / "domains_seen.txt"
+        self.log_path = self.project_root / "logs"
         
         # Setup Config Manager
         self.cfg_manager = ConfigManager(self.config_path)
         self.config = Config()   # Start with empty config
         self._reload_timer = None
         self._observer = None
-        self._load_config()      # Load the config file and share with other files in real time.
-        self._start_watcher()    # Setup Watchdog to monitor the config file for updates.
+        # Step 1: Temporary logger setup (disabled file logging)
         
-        ctx.log.info(f"MediaSaver addon initialized → {self.config.save_dir}")
+
+        # Step 2: Load config
+        self._load_config()
+        setup_logging()
+
+        self._start_watcher()    # Setup Watchdog to monitor the config file for updates.
+        log_proxy.info("✅ log_proxy is ready to rock.")
+
+        log_proxy.info(f"MediaSaver addon initialized → {self.config.save_dir}")
         log("info", "black", f"MediaSaver addon initialized → {self.config.save_dir}")
 
     def _load_config(self):
@@ -50,18 +59,18 @@ class MediaSaver:
             self.config: Config = self.cfg_manager.load_config()  # Load config from file and store locally
             config_provider.set_config(self.config)       # Share with other files in real time.
             
-            ctx.log.info("MediaServer: 🔄 Reloaded config")
+            log_proxy.info("MediaServer: 🔄 Reloaded config")
             log("info", "blue", "MediaServer: 🔄 Reloaded config")
         except Exception as e:
             
-            ctx.log.error(f"Failed to load config: {e}")
+            log_proxy.error(f"Failed to load config: {e}")
             log("error", "red", f"Failed to load config: {e}")
             config_provider.set_config({})
 
     def _start_watcher(self):
         """Start watchdog observer to watch the config file."""
         if not self.config_path.exists():
-            ctx.log.error(f"⚠ Cannot watch config; file does not exist: {self.config_path}")
+            log_proxy.error(f"⚠ Cannot watch config; file does not exist: {self.config_path}")
             log("error", "red", f"⚠ Cannot watch config; file does not exist: {self.config_path}")
             return
         try:
@@ -72,7 +81,7 @@ class MediaSaver:
             observer.start()
             self._observer = observer  # Store if you ever need to stop it
         except Exception as e:
-            ctx.log.error(f"⚠ Failed to start config watcher: {e}")
+            log_proxy.error(f"⚠ Failed to start config watcher: {e}")
             log("error", "red", f"Failed to start config watcher: {e}")
 
     def _on_config_change(self):
@@ -83,7 +92,7 @@ class MediaSaver:
         
     def _debounced_reload(self):
         self._load_config()
-        ctx.log.info("🔄 Config reloaded via debounced watcher.")
+        log_proxy.info("🔄 Config reloaded via debounced watcher.")
         log("info", "blue", "🔄 Config reloaded via debounced watcher.")
 
     def done(self):
@@ -91,7 +100,7 @@ class MediaSaver:
         if hasattr(self, "_observer") and self._observer:
             self._observer.stop()
             self._observer.join()
-            ctx.log.info("🛑 Config watcher stopped cleanly.")
+            log_proxy.info("🛑 Config watcher stopped cleanly.")
             log("info", "blue", "🛑 Config watcher stopped cleanly.")
 
     def response(self, flow: http.HTTPFlow):
@@ -104,6 +113,8 @@ class MediaSaver:
         basename = os.path.basename(clean_url)
         mime_type, ext = detect_mime_and_extension(content, fallback_url=url)
         fname = safe_filename(basename, ext, fallback_url=url)
+        
+        log_proxy.info(f"Received: {fname} → {mime_type}, {size} bytes")
         log('info', "brown", f"{fname} -> {mime_type}, {size} bytes")
 
         if (not does_header_match_size(flow.response.headers.get("Content-Length"), size, url) or 

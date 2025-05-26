@@ -18,8 +18,12 @@ from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 import filetype
 from tzMCP.save_media_utils.mime_data_minimal import MIME_TO_EXTENSIONS
+from tzMCP.save_media_utils.mime_categories import MIME_GROUPS
 import mimetypes
+from tzMCP.common_utils.log_config import setup_logging, log_proxy
 
+# Configure log_proxy
+setup_logging()
 
 
 ENABLE_PERFORMANCE_CHECK = True
@@ -38,7 +42,7 @@ for mime, extensions in MIME_TO_EXTENSIONS.items():
 def log_duration(label, start_time):
     if ENABLE_PERFORMANCE_CHECK:
         duration = time.perf_counter() - start_time
-        print(f"[PROFILE] {label} took {duration:.4f}s", flush=True)
+        log("debug", "blue", f"[PROFILE] {label} took {duration:.4f}s")
 
 def send_log_to_gui(entry):
     def _post():
@@ -49,21 +53,22 @@ def send_log_to_gui(entry):
     Thread(target=_post, daemon=True).start()
 
 def log(level: str, color: str, *lines: str):
-    """Log a message to the console and optionally to the GUI"""
-    # only skip if it is a debug messsage and debug messages are not wanted.
-    if level.lower() == "debug" and not get_config().log_internal_debug:
+    config = get_config()
+    if level.lower() == "debug" and not config.log_internal_debug:
         return
 
-    # Print to console
-    print("\n".join(list(lines)), flush=True)
-
-    # Send to GUI
-    entry = {
+    # Console + GUI
+    print("\n".join(lines), flush=True)
+    send_log_to_gui({
         "color": color,
         "weight": "bold",
         "lines": list(lines)
-    }
-    send_log_to_gui(entry)
+    })
+
+    # Python logging backend
+    message = " ".join(lines)
+    getattr(log_proxy, level.lower(), log_proxy.info)(message)
+
 
 def sanitize_filename(filename: str, fallback_url: str = "") -> str:
     name = re.sub(r"[^\w\-_. ]", "_", filename)
@@ -77,6 +82,7 @@ def sanitize_filename(filename: str, fallback_url: str = "") -> str:
     if not name or name.upper() in WINDOWS_RESERVED_NAMES:
         hash_val = hashlib.sha256(fallback_url.encode()).hexdigest()[:12]
         name = f"file_{hash_val}"
+        log("warning", "red", f"File name {filename} is a reserved windows name.", f"\tIt has been renamed: {name}")
     return name
 
 def safe_filename(raw_name: str, ext: str, fallback_url: str = "") -> str:
@@ -86,16 +92,6 @@ def safe_filename(raw_name: str, ext: str, fallback_url: str = "") -> str:
         raw_name += ext
     return sanitize_filename(raw_name, fallback_url)
 
-def detect_mime(data: bytes) -> str:
-    try:
-        img = Image.open(BytesIO(data))
-        return Image.MIME.get(img.format, "application/octet-stream")
-    except Exception:
-        try:
-            return magic.from_buffer(data, mime=True)
-        except Exception:
-            return "application/octet-stream"
-        
 def detect_mime_and_extension(byte_data: bytes, fallback_url: str = "") -> tuple[str, str]:
     """
     Try to detect the MIME type and extension:
@@ -107,6 +103,7 @@ def detect_mime_and_extension(byte_data: bytes, fallback_url: str = "") -> tuple
         base = os.path.basename(fallback_url.split("?", 1)[0])
         ext = os.path.splitext(base)[1].lower()
         if ext in EXTENSION_TO_MIME:
+            log("info", "blue", f"URL extension found: {ext}. Using MIME type: {EXTENSION_TO_MIME[ext]}")
             return EXTENSION_TO_MIME[ext], ext
 
     # --- Step 2: Fallback to content-based detection ---
@@ -115,12 +112,13 @@ def detect_mime_and_extension(byte_data: bytes, fallback_url: str = "") -> tuple
         mime = kind.mime
         extensions = MIME_TO_EXTENSIONS.get(mime)
         ext = f".{kind.extension}" if not extensions else extensions[0]
+        log("info", "blue", f"Filetype tested as: {ext}. Using MIME type: {mime}")
         return mime, ext
 
     # --- Final fallback ---
+    log("warning", "orange", "No extension determined.")
     return "application/octet-stream", ".bin"
 
-        
 def sanitize_url(url: str) -> str:
     """Strip or redact sensitive query params from URLs."""
     parsed = urlparse(url)
@@ -133,7 +131,6 @@ def is_mime_type_allowed(mime_type: str, fname: str = None) -> bool:
     """Check if MIME type is in one of the allowed MIME groups."""
     start_check = perf_counter()
     config = get_config()
-    from tzMCP.save_media_utils.mime_categories import MIME_GROUPS
 
     allowed_types = set()
     for group in config.allowed_mime_groups:
@@ -141,7 +138,7 @@ def is_mime_type_allowed(mime_type: str, fname: str = None) -> bool:
 
     result = True
     if mime_type not in allowed_types:
-        log("warn", "orange", f"⏭ Skipped file {fname}", f"\tReason: MIME type {mime_type} not allowed.")
+        log("warning", "orange", f"⏭ Skipped file {fname}", f"\tReason: MIME type {mime_type} not allowed.")
         result = False
 
     log_duration("is_mime_type_allowed()", start_check)
@@ -157,7 +154,7 @@ def is_file_size_out_of_bounds(size:int, fname:str = None):
         min_b = config.filter_file_size["min_bytes"]
         max_b = config.filter_file_size["max_bytes"]
         if not min_b <= size <= max_b:
-            log("warn", "orange",
+            log("warning", "orange",
                 f"⏭ Skipped {fname}", f"\tReason: {size} b not between [{min_b},{max_b}] bytes.")
             response = True
     log_duration("is_file_size_out_of_bounds() ", start_is_domain_blocked_by_whitelist_check)
@@ -175,7 +172,7 @@ def is_domain_blocked_by_whitelist(url:str, fname:str = None):
     if config.whitelist:
         netloc = urlparse(url).hostname or ""
         if not any(domain in netloc for domain in config.whitelist):
-            log("warn", "orange",
+            log("warning", "orange",
                 f"⏭ Skipped {fname}", f"\tURL: {sanitize_url(url)}", "\tReason: domain not in whitelist.")
             response = True
     log_duration("is_domain_blocked_by_whitelist() ", start_is_domain_blocked_by_whitelist_check)
@@ -193,7 +190,7 @@ def is_domain_blacklisted(url:str, fname:str = None):
     if config.blacklist:
         netloc = urlparse(url).hostname or ""
         if any(domain in netloc for domain in config.blacklist):
-            log("warn", "orange",
+            log("warning", "orange",
                 f"⏭ Skipped {fname}", f"\tURL: {sanitize_url(url)}", "\tReason: domain in blacklist.")
             response = True
     log_duration("is_domain_blacklisted() ", start_is_domian_blacklisted_check)
@@ -207,6 +204,7 @@ def is_valid_image(content: bytes):
         img.verify()  # Verify header-only, no full decode
         response = True
     except Exception:
+        log("warning", "orange", "Not a valid image.")
         response = False
     log_duration("is_valid_image() ", start_is_valid_image_check)
     return response
@@ -224,7 +222,7 @@ def is_image_size_out_of_bounds(content: bytes, fname: str = None):
             min_h = config.filter_pixel_dimensions.get("min_height", 1)
             max_h = config.filter_pixel_dimensions.get("max_height", 999999)
             if w < min_w or w > max_w or h < min_h or h > max_h:
-                log("warn", "orange", f"⏭ Skipped file {fname}", f"\tReason: ({w}x{h} not in allowed ranges)")
+                log("warning", "orange", f"⏭ Skipped file {fname}", f"\tReason: ({w}x{h} not in allowed ranges)")
                 response = True
         except Exception as e:
             log("error", "red", f"⛔ Pixel check failed: {e}")

@@ -23,6 +23,7 @@ class Config:
         "min_bytes": 10240,
         "max_bytes": 157286400
     })
+    log_to_file: bool = False
     log_internal_debug: bool = True
     log_seen_domains: bool = True
     auto_reload_config: bool = True
@@ -96,6 +97,8 @@ class ConfigManager:
                 self.config.filter_pixel_dimensions = raw["filter_pixel_dimensions"]
             if "filter_file_size" in raw and isinstance(raw["filter_file_size"], dict):
                 self.config.filter_file_size = raw["filter_file_size"]
+            if "log_to_file" in raw:
+                self.config.log_to_file = bool(raw["log_to_file"])
             if "log_internal_debug" in raw:
                 self.config.log_internal_debug = bool(raw["log_internal_debug"])
             if "log_seen_domains" in raw:

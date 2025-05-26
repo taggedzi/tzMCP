@@ -68,14 +68,16 @@ class ConfigTab(ttk.Frame):
         tk.Entry(pd_frame, textvariable=self.max_height, width=6).grid(row=0, column=5, padx=2)
 
         # Flags
+        self.log_to_file = tk.BooleanVar(value=self.config.log_to_file)
         self.log_internal_debug = tk.BooleanVar(value=self.config.log_internal_debug)
         self.log_seen_domains = tk.BooleanVar(value=self.config.log_seen_domains)
         self.auto_reload_config = tk.BooleanVar(value=self.config.auto_reload_config)
         flag_frame = ttk.Frame(self)
         flag_frame.grid(row=6, column=1, columnspan=2, sticky='w', padx=5, pady=5)
-        tk.Checkbutton(flag_frame, text="Log Internal Debug", variable=self.log_internal_debug).grid(row=0, column=0, sticky='w', padx=5)
-        tk.Checkbutton(flag_frame, text="Log Seen Domains", variable=self.log_seen_domains).grid(row=0, column=1, sticky='w', padx=5)
-        tk.Checkbutton(flag_frame, text="Auto Reload Config", variable=self.auto_reload_config).grid(row=0, column=2, sticky='w', padx=5)
+        tk.Checkbutton(flag_frame, text="Log to file", variable=self.log_to_file).grid(row=0, column=0, sticky='w', padx=5)
+        tk.Checkbutton(flag_frame, text="Log Internal Debug", variable=self.log_internal_debug).grid(row=0, column=1, sticky='w', padx=5)
+        tk.Checkbutton(flag_frame, text="Log Seen Domains", variable=self.log_seen_domains).grid(row=0, column=2, sticky='w', padx=5)
+        tk.Checkbutton(flag_frame, text="Auto Reload Config", variable=self.auto_reload_config).grid(row=0, column=3, sticky='w', padx=5)
 
         # Save Button
         tk.Button(self, text="Save Configuration", command=self._save).grid(row=10, column=0, columnspan=3, pady=10)
@@ -138,6 +140,7 @@ class ConfigTab(ttk.Frame):
                     "min_bytes": self.min_bytes.get(),
                     "max_bytes": self.max_bytes.get(),
                 },
+                log_to_file=self.log_to_file.get(),
                 log_internal_debug=self.log_internal_debug.get(),
                 log_seen_domains=self.log_seen_domains.get(),
                 auto_reload_config=self.auto_reload_config.get()
