@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
@@ -7,7 +8,7 @@ from tzMCP.common_utils.cleanup_profiles import clean_old_profiles
 from tzMCP.common_utils.log_config import setup_logging, log_gui
 setup_logging()
 
-class ConfigTab(ttk.Frame):
+class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-instance-attributes
     """Config tab for the GUI."""
     def __init__(self, parent, config_manager: ConfigManager, config: Config):
         super().__init__(parent)
@@ -16,8 +17,9 @@ class ConfigTab(ttk.Frame):
         self.mime_group_vars = {}
         self._build_ui()
 
-    def _build_ui(self):
-        # -------------------------
+    def _build_ui(self):  # pylint: disable=too-many-statements
+        """Build the gui"""
+        # ------------------------
         # Proxy and Download Settings
         # -------------------------
         proxy_frame = ttk.LabelFrame(self, text="Proxy and Download Settings")
@@ -106,21 +108,25 @@ class ConfigTab(ttk.Frame):
             self.columnconfigure(i, weight=1)
 
     def _browse(self):
+        """Browse to cache directory"""
         path = filedialog.askdirectory()
         if path:
             self.save_dir_var.set(path)
 
     def _manual_clean_logs(self):
+        """Clean the log directory"""
         log_dir = Path(__file__).parent.parent.parent / "logs"
         deleted = clean_old_logs(log_dir)
         messagebox.showinfo("Cleanup Logs", f"Removed {len(deleted)} log file(s).")
 
     def _manual_clean_profiles(self):
+        """Clean the profile directory"""
         profile_dir = Path(__file__).parent.parent.parent / "profiles"
         deleted = clean_old_profiles(profile_dir)
         messagebox.showinfo("Cleanup Profiles", f"Removed {len(deleted)} expired profile(s).")
 
     def reload_config(self, config: Config):
+        """Reload the config."""
         self.config = config
         self.save_dir_var.set(str(config.save_dir))
         for group, var in self.mime_group_vars.items():
@@ -141,6 +147,7 @@ class ConfigTab(ttk.Frame):
         self.enable_persistent_dedup.set(config.enable_persistent_dedup)
 
     def _save(self):
+        """Save the config"""
         try:
             selected_mime_groups = [group for group, var in self.mime_group_vars.items() if var.get()]
             new_cfg = Config(
@@ -165,9 +172,11 @@ class ConfigTab(ttk.Frame):
                 log_level=self.log_level.get(),
                 enable_persistent_dedup=self.enable_persistent_dedup.get()
             )
-            self.config_manager._validate_config(new_cfg)
+            self.config_manager._validate_config(new_cfg)  # pylint: disable=protected-access
             self.config_manager.save_config(new_cfg)
+            log_gui.debug("Configuration saved successfully.")
             messagebox.showinfo("Success", "Configuration saved successfully.")
             self.config = new_cfg
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log_gui.error(f"Failed to save config: {e}")    # pylint: disable=logging-fstring-interpolation
             messagebox.showerror("Error", f"Failed to save config: {e}")
