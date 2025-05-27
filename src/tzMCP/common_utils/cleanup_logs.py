@@ -8,11 +8,13 @@ def clean_old_logs(log_dir: Path, max_age_days: int = 7, extensions=(".log",)) -
     Only files matching `extensions` are deleted.
     Returns list of deleted paths.
     """
+    log_proxy.debug(f"Clearing out logs at location: '{log_dir}' that are more than {max_age_days} old.")
     deleted = []
     now = time.time()
     cutoff = now - (max_age_days * 86400)
 
     if not log_dir.exists():
+        log_proxy.debug(f"Log directory not found. Assumed deleted.")
         return deleted
 
     for item in log_dir.iterdir():

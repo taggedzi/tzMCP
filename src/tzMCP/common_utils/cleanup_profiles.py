@@ -8,11 +8,13 @@ def clean_old_profiles(profile_dir: Path, max_age_days: int = 3) -> list[Path]:
     Delete profile directories older than `max_age_days`.
     Returns a list of deleted paths for reporting/logging.
     """
+    log_proxy.debug(f"Clearing out browser profiles at: '{profile_dir}' that are more than {max_age_days} old.")
     deleted = []
     now = time.time()
     cutoff = now - (max_age_days * 86400)
 
     if not profile_dir.exists():
+        log_proxy.debug(f"Profile directory not found. Assumed deleted.")
         return deleted
 
     for item in profile_dir.iterdir():
