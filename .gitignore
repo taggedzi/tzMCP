@@ -67,5 +67,5 @@ Desktop.ini
 venv/
 cache/
 whitelist_generated.yaml
-domains_seen.txt
 profiles/
+*.sqlite 

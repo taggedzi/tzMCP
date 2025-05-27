@@ -25,25 +25,21 @@ class Config:
     })
     log_to_file: bool = False
     log_level: str = "INFO"
+    enable_persistent_dedup: bool = False
     auto_reload_config: bool = True
 
 
 class ConfigManager:
     def __init__(self, config_path: Optional[Path] = None):
-        """Initialize with optional config_path; defaults to project/config/media_proxy_config.yaml."""
-        self._log_fn = None  # Optional Logging hook
-        # Determine config path
         if config_path is None:
             base = Path(__file__).parent.parent.parent.parent
             config_path = base / "config" / "media_proxy_config.yaml"
         self.config_path = config_path
-        # Ensure config directory exists
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        # Initialize default config
+        self._log_fn = None
         self.config = Config()
 
     def set_logger(self, log_fn):
-        """Optional: set a logger function for GUI/system logs."""
         self._log_fn = log_fn
 
     def _validate_config(self, config: Config) -> Config:
@@ -65,55 +61,44 @@ class ConfigManager:
             if self._log_fn:
                 self._log_fn("warn", "orange", msg)
 
-        # Check file size bounds
+        # File size sanity checks
         ffs = config.filter_file_size
         ffs["min_bytes"] = max(0, ffs.get("min_bytes", 0))
         ffs["max_bytes"] = max(ffs["min_bytes"], ffs.get("max_bytes", 1))
 
-        # Check pixel dimension bounds
+        # Pixel dimensions sanity
         fpd = config.filter_pixel_dimensions
         for key in ["min_width", "min_height", "max_width", "max_height"]:
             fpd[key] = max(0, fpd.get(key, 0))
         fpd["max_width"] = max(fpd["min_width"], fpd["max_width"])
         fpd["max_height"] = max(fpd["min_height"], fpd["max_height"])
 
+        # Log level normalization
+        config.log_level = config.log_level.upper()
+        if config.log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            config.log_level = "INFO"
+
         return config
 
     def load_config(self) -> Config:
-        """Load configuration from YAML file, overriding defaults if present."""
         if self.config_path.exists():
             with self.config_path.open("r", encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
-            if "save_dir" in raw:
-                self.config.save_dir = Path(raw["save_dir"])
-            if "allowed_mime_groups" in raw and isinstance(raw["allowed_mime_groups"], list):
-                self.config.allowed_mime_groups = raw["allowed_mime_groups"]
-            if "whitelist" in raw and isinstance(raw["whitelist"], list):
-                self.config.whitelist = raw["whitelist"]
-            if "blacklist" in raw and isinstance(raw["blacklist"], list):
-                self.config.blacklist = raw["blacklist"]
-            if "filter_pixel_dimensions" in raw and isinstance(raw["filter_pixel_dimensions"], dict):
-                self.config.filter_pixel_dimensions = raw["filter_pixel_dimensions"]
-            if "filter_file_size" in raw and isinstance(raw["filter_file_size"], dict):
-                self.config.filter_file_size = raw["filter_file_size"]
-            if "log_to_file" in raw:
-                self.config.log_to_file = bool(raw["log_to_file"])
-            if "log_internal_debug" in raw:
-                self.config.log_internal_debug = bool(raw["log_internal_debug"])
-            if "log_seen_domains" in raw:
-                self.config.log_seen_domains = bool(raw["log_seen_domains"])
-            if "auto_reload_config" in raw:
-                self.config.auto_reload_config = bool(raw["auto_reload_config"])
+            for key in asdict(self.config):
+                if key in raw:
+                    value = raw[key]
+                    if key == "save_dir":
+                        self.config.save_dir = Path(value)
+                    else:
+                        setattr(self.config, key, value)
         self.config = self._validate_config(self.config)
         return self.config
 
     def save_config(self, config: Config = None) -> None:
-        """Save the Config object to YAML file, creating parent dirs if necessary."""
         cfg = config or self.config
         self._validate_config(cfg)
         data = asdict(cfg)
         data["save_dir"] = str(cfg.save_dir)
-        # Ensure directory exists
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with self.config_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(data, f, sort_keys=False)

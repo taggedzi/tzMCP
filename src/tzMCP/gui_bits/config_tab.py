@@ -71,6 +71,7 @@ class ConfigTab(ttk.Frame):
         self.log_to_file = tk.BooleanVar(value=self.config.log_to_file)
         self.log_level = tk.StringVar(value=self.config.log_level)
         self.auto_reload_config = tk.BooleanVar(value=self.config.auto_reload_config)
+        self.enable_persistent_dedup = tk.BooleanVar(value=self.config.enable_persistent_dedup)
         flag_frame = ttk.Frame(self)
         flag_frame.grid(row=6, column=1, columnspan=2, sticky='w', padx=5, pady=5)
         tk.Checkbutton(flag_frame, text="Log to File", variable=self.log_to_file).grid(row=0, column=0, sticky='w', padx=5)
@@ -78,6 +79,7 @@ class ConfigTab(ttk.Frame):
         log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         ttk.OptionMenu(flag_frame, self.log_level, self.log_level.get(), *log_levels).grid(row=0, column=2, sticky='w')
         tk.Checkbutton(flag_frame, text="Auto Reload Config", variable=self.auto_reload_config).grid(row=0, column=3, sticky='w', padx=5)
+        tk.Checkbutton(flag_frame, text="Enable Persistent Deduplication", variable=self.enable_persistent_dedup).grid(row=1, column=0, columnspan=3, sticky='w', padx=5)
 
         # Save Button
         tk.Button(self, text="Save Configuration", command=self._save).grid(row=10, column=0, columnspan=3, pady=10)
@@ -119,6 +121,8 @@ class ConfigTab(ttk.Frame):
         self.log_to_file.set(config.log_to_file)
         self.log_level.set(config.log_level)
         self.auto_reload_config.set(config.auto_reload_config)
+        self.enable_persistent_dedup.set(config.enable_persistent_dedup)
+
 
     def _save(self):
         try:
@@ -142,7 +146,8 @@ class ConfigTab(ttk.Frame):
                 },
                 auto_reload_config=self.auto_reload_config.get(),
                 log_to_file=self.log_to_file.get(),
-                log_level=self.log_level.get()
+                log_level=self.log_level.get(),
+                enable_persistent_dedup=self.enable_persistent_dedup.get()
             )
 
             # 🧠 Validate before saving

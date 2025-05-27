@@ -16,7 +16,7 @@ from tzMCP.save_media_utils.save_media_utils import (
     is_directory_traversal_attempted, atomic_save, detect_mime_and_extension
 )
 from tzMCP.common_utils.log_config import setup_logging, log_proxy
-
+from tzMCP.save_media_utils.hash_tracker import init_hash_db, shutdown_hash_db, is_duplicate
 
 class ConfigChangeHandler(FileSystemEventHandler):
     """Watchdog event handler class"""
@@ -46,6 +46,7 @@ class MediaSaver:
         self._load_config()
         setup_logging()
         self._start_watcher()    # Setup Watchdog to monitor the config file for updates.
+        init_hash_db(self.config.enable_persistent_dedup)  # Setup DB to managed Dedupe hashse
         log_proxy.info(f"MediaSaver addon initialized → {self.config.save_dir}")
 
     def _load_config(self):
@@ -90,6 +91,7 @@ class MediaSaver:
         if hasattr(self, "_observer") and self._observer:
             self._observer.stop()
             self._observer.join()
+            shutdown_hash_db()
             log_proxy.info("🛑 Config watcher stopped cleanly.")
 
     def response(self, flow: http.HTTPFlow):
@@ -117,6 +119,10 @@ class MediaSaver:
         if mime_type in IMAGE_TYPES:
             if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
                 return
+            
+        if is_duplicate(content):
+            log("info", "grey", f"⏭ Skipped duplicate content (SHA256 matched): {fname}")
+            return
 
         save_path = (self.config.save_dir / fname).resolve()
         if not is_directory_traversal_attempted(save_path):
