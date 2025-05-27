@@ -32,8 +32,8 @@ MIME_TO_EXTENSIONS = {
     ".7z"
   ],
   "application/octet-stream": [
-    ".a",
     ".bin",
+    ".a",
     ".bpk",
     ".deploy",
     ".dist",
@@ -191,11 +191,11 @@ MIME_TO_EXTENSIONS = {
     ".azw"
   ],
   "application/x-msdownload": [
-    ".bat",
-    ".com",
-    ".dll",
     ".exe",
     ".msi"
+    ".com",
+    ".bat",
+    ".dll",
   ],
   "application/x-bcpio": [
     ".bcpio"
@@ -225,8 +225,8 @@ MIME_TO_EXTENSIONS = {
     ".box"
   ],
   "application/x-bzip2": [
-    ".boz",
     ".bz2"
+    ".boz",
   ],
   "image/prs.btif": [
     ".btif"
@@ -359,16 +359,16 @@ MIME_TO_EXTENSIONS = {
     ".cod"
   ],
   "text/plain": [
+    ".txt"
+    ".log",
     ".conf",
+    ".text",
     ".def",
     ".diff",
     ".in",
     ".ksh",
     ".list",
-    ".log",
     ".pl",
-    ".text",
-    ".txt"
   ],
   "application/vnd.debian.binary-package": [
     ".deb",
@@ -860,19 +860,19 @@ MIME_TO_EXTENSIONS = {
     ".joda"
   ],
   "image/jpeg": [
+    ".jpg",
     ".jpe",
     ".jpeg",
-    ".jpg",
     ".pjpg",
     ".jfif",
     ".jfif-tbnl",
     ".jif"
   ],
   "image/pjpeg": [
+    ".pjpg",
     ".jpe",
     ".jpeg",
     ".jpg",
-    ".pjpg",
     ".jfi",
     ".jfif",
     ".jfif-tbnl",
@@ -896,9 +896,9 @@ MIME_TO_EXTENSIONS = {
     ".json"
   ],
   "audio/midi": [
+    ".midi",
     ".kar",
     ".mid",
-    ".midi",
     ".rmi"
   ],
   "audio/aiff": [
@@ -1035,9 +1035,9 @@ MIME_TO_EXTENSIONS = {
     ".mml"
   ],
   "application/vnd.sqlite3": [
+    ".sqlite3",
     ".db",
     ".sqlite",
-    ".sqlite3",
     ".db-wal",
     ".sqlite-wal",
     ".db-shm",
@@ -1268,8 +1268,8 @@ MIME_TO_EXTENSIONS = {
     ".odt"
   ],
   "audio/ogg": [
-    ".oga",
     ".ogg",
+    ".oga",
     ".spx"
   ],
   "video/x-matroska": [
@@ -1894,8 +1894,8 @@ MIME_TO_EXTENSIONS = {
     ".tfm"
   ],
   "image/tiff": [
-    ".tif",
     ".tiff"
+    ".tif",
   ],
   "application/vnd.tmobile-livetv": [
     ".tmo"
@@ -1919,8 +1919,8 @@ MIME_TO_EXTENSIONS = {
     ".tsv"
   ],
   "application/x-font-ttf": [
-    ".ttc",
     ".ttf"
+    ".ttc",
   ],
   "application/vnd.simtech-mindmapper": [
     ".twd",
@@ -2029,9 +2029,9 @@ MIME_TO_EXTENSIONS = {
     ".wbxml"
   ],
   "application/vnd.ms-works": [
+    ".wks",
     ".wcm",
     ".wdb",
-    ".wks",
     ".wps"
   ],
   "video/x-ms-wm": [
@@ -2138,11 +2138,11 @@ MIME_TO_EXTENSIONS = {
     ".xif"
   ],
   "application/vnd.ms-excel": [
+    ".xls",
     ".xla",
     ".xlb",
     ".xlc",
     ".xlm",
-    ".xls",
     ".xlt",
     ".xlw"
   ],
