@@ -1,5 +1,6 @@
 # log_config.py
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from threading import Thread
 import requests
@@ -78,7 +79,7 @@ def setup_logging():
 
         # Optional file output (only if enabled)
         if enable_file:
-            fh = logging.FileHandler(file_path, encoding="utf-8")
+            fh = RotatingFileHandler(file_path, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
             fh.setLevel(level)
             fh.setFormatter(formatter)
             logger.addHandler(fh)
