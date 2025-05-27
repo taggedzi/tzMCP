@@ -8,7 +8,6 @@ from tzMCP.gui_bits.proxy_tab import ProxyTab
 from tzMCP.gui_bits.browser_tab import BrowserTab
 from tzMCP.gui_bits.config_tab import ConfigTab
 from tzMCP.gui_bits.status_bar import StatusBar
-from tzMCP.gui_bits.domain_tab import DomainTab
 from tzMCP.gui_bits.log_server import start_gui_log_server
 from tzMCP.gui_bits.browser_launcher import cleanup_browsers
 from tzMCP.common_utils.log_config import setup_logging, log_gui
@@ -87,10 +86,6 @@ class MainApp(tk.Tk):
         self.config_manager.set_logger(log_gui)
         config_tab = ConfigTab(notebook, self.config_manager, self.config)
         notebook.add(config_tab, text="Configuration")
-
-        # Domain Viewer tab
-        domain_tab = DomainTab(notebook)
-        notebook.add(domain_tab, text="Domain Viewer")
 
     def _on_close(self):
         # stop the proxy if it’s still running and log it

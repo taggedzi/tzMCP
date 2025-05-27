@@ -16,14 +16,14 @@ This plan outlines a step-by-step strategy to harden the security and improve th
 #### **Step 2: Improve Logging Transparency**
 
 * [x] Ensure all rejection reasons are clearly logged.
-* [ ] Allow export of logs for user debugging.
+* [x] Allow export of logs for user debugging.
 * [ ] Add log filtering (e.g., show only errors/skips/saves).
 
 #### **Step 3: Enhance Config Monitoring**
 
 * [x] Migrate config watcher to `watchdog`.
 * [x] Avoid excessive polling or reloads.
-* [ ] Add a small debounce buffer (e.g., 250ms) to coalesce edits.
+* [x] Add a small debounce buffer (e.g., 250ms) to coalesce edits.
 
 #### **Step 4: Guard Against Path Traversals / Write Abuse**
 
@@ -74,7 +74,7 @@ This plan outlines a step-by-step strategy to harden the security and improve th
 
 #### **Step 10: Optional Caching Layer**
 
-* [ ] Memoize seen URLs + their pass/fail result.
+* [ ] Memoize seen URLs + their pass/fail result.  (NO)
 * [ ] Timebox cache expiration (5 min).
 * [ ] Ensure thread-safe access if multithreaded.
 
