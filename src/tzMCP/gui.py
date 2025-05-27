@@ -12,6 +12,8 @@ from tzMCP.gui_bits.domain_tab import DomainTab
 from tzMCP.gui_bits.log_server import start_gui_log_server
 from tzMCP.gui_bits.browser_launcher import cleanup_browsers
 from tzMCP.common_utils.log_config import setup_logging, log_gui
+from tzMCP.common_utils.cleanup_profiles import clean_old_profiles
+from tzMCP.common_utils.cleanup_logs import clean_old_logs
 setup_logging()
 
 class MainApp(tk.Tk):
@@ -24,10 +26,16 @@ class MainApp(tk.Tk):
         # Initialize controllers (always use project/config/media_proxy_config.yaml)
         project_root       = Path(__file__).parent.parent.parent
         config_file        = project_root / "config" / "media_proxy_config.yaml"
+        profile_root       = project_root / "profiles"
+        log_dir            = project_root / "logs"
 
-        print(f"Project root: {project_root}")
-        print(f"Config file: {config_file}")
-        print(f"Config file exists: {config_file.exists()}")
+        # Clean out old profiles and logs. 
+        clean_old_profiles(profile_root, max_age_days=3)
+        clean_old_logs(log_dir, max_age_days=7)
+
+        log_gui.info(f"Project root: {project_root}")
+        log_gui.debug(f"Config file: {config_file}")
+        log_gui.debug(f"Config file exists: {config_file.exists()}")
         config_file.parent.mkdir(parents=True, exist_ok=True)
         self.config_manager = ConfigManager()
         self.config        = self.config_manager.load_config()
