@@ -20,26 +20,38 @@ class BrowserTab(ttk.Frame):
         self._build_widgets()
 
     def _build_widgets(self):
-        row = 0
+        # Frame: Browser Management
+        mgmt_frame = ttk.LabelFrame(self, text="Manage Browsers")
+        mgmt_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
-        ttk.Label(self, text="Select Browser:").grid(row=row, column=0, sticky="e")
-        self.browser_menu = ttk.OptionMenu(self, self.selected_browser, None, *self.display_names.values())
-        self.browser_menu.grid(row=row, column=1, sticky="ew")
+        ttk.Label(mgmt_frame, text="Selected:").grid(row=0, column=0, sticky="e", padx=5, pady=2)
+        self.browser_menu = ttk.OptionMenu(mgmt_frame, self.selected_browser, None, *self.display_names.values())
+        self.browser_menu.grid(row=0, column=1, sticky="ew", padx=5, pady=2)
 
-        row += 1
-        ttk.Label(self, text="Launch URL:").grid(row=row, column=0, sticky="e")
-        ttk.Entry(self, textvariable=self.launch_url, width=40).grid(row=row, column=1, sticky="ew")
+        add_btn = ttk.Button(mgmt_frame, text="Add...", command=self._add_browser)
+        add_btn.grid(row=0, column=2, padx=5)
 
-        row += 1
-        ttk.Checkbutton(self, text="Private / Incognito Mode", variable=self.use_incognito).grid(row=row, columnspan=2, sticky="w")
+        remove_btn = ttk.Button(mgmt_frame, text="Remove", command=self._remove_browser)
+        remove_btn.grid(row=0, column=3, padx=5)
 
-        row += 1
-        ttk.Button(self, text="Launch Browser", command=self._launch_browser).grid(row=row, columnspan=2, pady=5)
+        mgmt_frame.columnconfigure(1, weight=1)
 
-        row += 1
-        ttk.Button(self, text="Add Portable Browser...", command=self._add_browser).grid(row=row, columnspan=2)
+        # Frame: Launch Options
+        launch_frame = ttk.LabelFrame(self, text="Launch Options")
+        launch_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
 
-        self.columnconfigure(1, weight=1)
+        ttk.Label(launch_frame, text="Launch URL:").grid(row=0, column=0, sticky="e", padx=5, pady=2)
+        ttk.Entry(launch_frame, textvariable=self.launch_url, width=40).grid(row=0, column=1, columnspan=2, sticky="ew", padx=5, pady=2)
+
+        ttk.Checkbutton(launch_frame, text="Private / Incognito Mode", variable=self.use_incognito).grid(row=1, column=0, columnspan=3, sticky="w", padx=5, pady=2)
+
+        launch_btn = ttk.Button(launch_frame, text="Launch Browser", command=self._launch_browser)
+        launch_btn.grid(row=2, column=0, columnspan=3, pady=5)
+
+        launch_frame.columnconfigure(1, weight=1)
+
+        # Let main frame stretch with window
+        self.columnconfigure(0, weight=1)
 
     def _load_browser_paths(self):
         if CONFIG_PATH.exists():
@@ -83,6 +95,23 @@ class BrowserTab(ttk.Frame):
         self._refresh_browser_menu()
         self.selected_browser.set(display_name)
 
+    def _remove_browser(self):
+        selected_label = self.selected_browser.get()
+        internal_name = next((k for k, v in self.display_names.items() if v == selected_label), None)
+
+        if not internal_name:
+            messagebox.showerror("Error", "No browser selected.")
+            return
+
+        if not messagebox.askyesno("Confirm Delete", f"Remove '{selected_label}' from browser list?"):
+            return
+
+        self.browser_paths.pop(internal_name, None)
+        self.display_names.pop(internal_name, None)
+        self._save_browser_paths()
+        self._refresh_browser_menu()
+        self.selected_browser.set("")
+
     def _refresh_browser_menu(self):
         menu = self.browser_menu["menu"]  # type: ignore
         menu.delete(0, "end")
@@ -91,7 +120,6 @@ class BrowserTab(ttk.Frame):
 
     def _launch_browser(self):
         selected_label = self.selected_browser.get()
-        # Reverse lookup the internal name
         internal_name = next((k for k, v in self.display_names.items() if v == selected_label), None)
         if not internal_name:
             messagebox.showerror("Error", f"Browser path not found for selection: {selected_label}")

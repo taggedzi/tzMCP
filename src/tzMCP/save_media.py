@@ -1,4 +1,7 @@
 # pylint: disable=logging-fstring-interpolation,redefined-outer-name,broad-exception-caught,line-too-long
+"""
+Script to build an addon for mitmproxy
+"""
 import os
 from pathlib import Path
 from time import perf_counter
@@ -119,9 +122,9 @@ class MediaSaver:
         if mime_type in IMAGE_TYPES:
             if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
                 return
-            
+
         if is_duplicate(content):
-            log("info", "grey", f"⏭ Skipped duplicate content (SHA256 matched): {fname}")
+            log_proxy.info(f"⏭ Skipped duplicate content (SHA256 matched): {fname}")
             return
 
         save_path = (self.config.save_dir / fname).resolve()
