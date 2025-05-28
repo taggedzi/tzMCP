@@ -145,11 +145,11 @@ options:
 
 ## 🔒 Security Notes
 
-* MIME detection uses both extension and byte-scanning (via `filetype`)
-* File extensions are **never guessed**
-* Executables are blocked unless explicitly allowed
-* File names are sanitized to prevent directory traversal or reserved name collisions
-* SHA256 deduplication prevents accidental overwrites or re-saves
+- MIME detection uses both extension and byte-scanning (via `filetype`)
+- File extensions are **never guessed**
+- Executables are blocked unless explicitly allowed
+- File names are sanitized to prevent directory traversal or reserved name collisions
+- SHA256 deduplication prevents accidental overwrites or re-saves
 
 ---
 
@@ -164,24 +164,24 @@ tzmcp   # launch GUI (entry point)
 
 ### Project Metadata
 
-* **Python version**: 3.8+
-* **Platform**: Windows, Linux, macOS (via tkinter + mitmproxy)
-* **License**: MIT
-* **Dependencies**:
+- **Python version**: 3.8+
+- **Platform**: Windows, Linux, macOS (via tkinter + mitmproxy)
+- **License**: MIT
+- **Dependencies**:
 
-  * mitmproxy
-  * Pillow
-  * filetype
-  * psutil
-  * pyyaml
-  * watchdog
-  * requests
+  - mitmproxy
+  - Pillow
+  - filetype
+  - psutil
+  - pyyaml
+  - watchdog
+  - requests
 
 ---
 
 ## 📁 Folder Layout
 
-```
+```text
 ├── .github\
 ├── .gitignore
 ├── .pylintrc
@@ -251,10 +251,10 @@ tzmcp   # launch GUI (entry point)
 
 We're planning unit tests for:
 
-* config validation
-* MIME filters
-* duplicate handling
-* CLI interface
+- config validation
+- MIME filters
+- duplicate handling
+- CLI interface
 
 ---
 
@@ -266,11 +266,11 @@ MIT License. See `LICENSE` file for full text.
 
 ## 🙌 Acknowledgements
 
-* Built on top of [mitmproxy](https://mitmproxy.org/)
-* Inspired by the need for a safe, auditable web media capture tool
+- Built on top of [mitmproxy](https://mitmproxy.org/)
+- Inspired by the need for a safe, auditable web media capture tool
 
 ---
 
-## Leagal:
+## Leagal
 
-Please understand and read the terms of this software before using it located they are located [here](./CYA_NOTICE.md)
+Please understand and read the terms of this software before using it located they are located [CYA_NOTICE.md](./CYA_NOTICE.md).
