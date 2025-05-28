@@ -273,4 +273,4 @@ MIT License. See `LICENSE` file for full text.
 
 ## Leagal
 
-Please understand and read the terms of this software before using it located they are located [CYA_NOTICE.md](./CYA_NOTICE.md).
+Please understand and read the terms of this software before using it. They are located here: [CYA_NOTICE.md](./CYA_NOTICE.md).
