@@ -271,17 +271,6 @@ MIT License. See `LICENSE` file for full text.
 
 ---
 
-## 🧠 Future Plans
+## Leagal:
 
-* [ ] CLI capture mode
-* [ ] Export/download manager
-* [ ] Browser session restore
-* [ ] Plugin system for custom validators
-* [ ] Optional multi-process file analyzers
-
----
-
-```
-
-Would you like me to drop this into a `README.md` file in your project now? Want any badges or shields added?
-```
+Please understand and read the terms of this software before using it located they are located [here](./CYA_NOTICE.md)
