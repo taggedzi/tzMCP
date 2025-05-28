@@ -1,0 +1,9 @@
+.coverage
+.git
+profiles
+logs
+__pycache__
+*.pyc
+venv
+tzMCP.egg-info
+
