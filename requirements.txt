@@ -45,7 +45,7 @@ pycparser==3.0
 pydivert==2.1.0
 Pygments==2.20.0
 pylsqpack==0.3.24
-pyOpenSSL==25.3.0
+pyOpenSSL==26.0.0
 pyparsing==3.3.2
 pyperclip==1.11.0
 pytest==9.0.3
