@@ -30,7 +30,7 @@ MarkupSafe==3.0.3
 mitmproxy==12.2.2
 mitmproxy-windows==0.12.11
 mitmproxy_rs==0.12.11
-msgpack==1.1.2
+msgpack==1.2.1
 packaging==26.2
 passlib==1.7.4
 pathspec==0.12.1
