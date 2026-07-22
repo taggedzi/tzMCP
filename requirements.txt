@@ -41,7 +41,7 @@ pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==2.22
 pydivert==2.1.0
-Pygments==2.19.1
+Pygments==2.20.0
 pylsqpack==0.3.22
 pyOpenSSL==25.0.0
 pyparsing==3.2.3
