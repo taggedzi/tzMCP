@@ -33,7 +33,7 @@ packaging==25.0
 passlib==1.7.4
 pathspec==0.12.1
 pdoc==15.0.3
-pillow==11.2.1
+pillow==12.3.0
 pluggy==1.6.0
 psutil==7.0.0
 publicsuffix2==2.20191221
