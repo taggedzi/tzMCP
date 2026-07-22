@@ -1,7 +1,6 @@
 save_dir: E:\Home\Documents\Programming\tzMCP\cache
 allowed_mime_groups:
 - image
-- text
 whitelist: []
 blacklist:
 - doubleclick.net
@@ -18,4 +17,5 @@ filter_file_size:
   max_bytes: 157286400
 log_to_file: true
 log_level: INFO
+enable_persistent_dedup: true
 auto_reload_config: true
