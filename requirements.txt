@@ -37,7 +37,7 @@ pillow==11.2.1
 pluggy==1.6.0
 psutil==7.0.0
 publicsuffix2==2.20191221
-pyasn1==0.6.1
+pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==2.22
 pydivert==2.1.0
