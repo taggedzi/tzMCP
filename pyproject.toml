@@ -25,3 +25,10 @@ tzMCP-gui = "tzMCP.gui:main"
 
 [project.urls]
 Homepage = "https://github.com/taggedzi/tzMCP"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+# pytest-qt is an unused dev dep (the GUI is tkinter, not Qt); disable it so
+# collection does not fail when no Qt binding is installed.
+addopts = "-ra -p no:pytest-qt"
