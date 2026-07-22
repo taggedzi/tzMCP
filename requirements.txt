@@ -58,7 +58,7 @@ ruamel.yaml==0.19.1
 service-identity==24.2.0
 sortedcontainers==2.4.0
 toml==0.10.2
-tornado==6.5.5
+tornado==6.5.7
 typing_extensions==4.13.2
 urllib3==2.7.0
 urwid==3.0.5
