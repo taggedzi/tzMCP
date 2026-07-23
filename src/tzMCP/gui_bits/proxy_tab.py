@@ -8,7 +8,7 @@ import time
 from tzMCP.common_utils.log_config import log_gui
 
 class ProxyTab(ttk.Frame):
-    def __init__(self, master, proxy_controller, status_bar, gui_queue):
+    def __init__(self, master, proxy_controller, status_bar, gui_queue, show_controls=True):
         super().__init__(master)
         self.proxy_controller = proxy_controller
         self.status_bar = status_bar
@@ -16,19 +16,25 @@ class ProxyTab(ttk.Frame):
         self.gui_queue = gui_queue
         self.proxy_controller.gui_queue = self.gui_queue
 
-        self._build_widgets()
+        self._build_widgets(show_controls)
         self._start_log_drain_thread()
 
-    def _build_widgets(self):
-        self.start_btn = ttk.Button(self, text="Start", command=self._start)
-        self.start_btn.grid(row=0, column=0, padx=5, pady=5)
+    def _build_widgets(self, show_controls):
+        log_row = 0
+        if show_controls:
+            self.start_btn = ttk.Button(self, text="Start", command=self._start)
+            self.start_btn.grid(row=0, column=0, padx=5, pady=5)
 
-        self.stop_btn = ttk.Button(self, text="Stop", command=self._stop, state='disabled')
-        self.stop_btn.grid(row=0, column=1, padx=5, pady=5)
+            self.stop_btn = ttk.Button(self, text="Stop", command=self._stop, state='disabled')
+            self.stop_btn.grid(row=0, column=1, padx=5, pady=5)
+            log_row = 1
+        else:
+            self.start_btn = None
+            self.stop_btn = None
 
         self.log = scrolledtext.ScrolledText(self, wrap=tk.WORD, height=20, state='disabled')
-        self.log.grid(row=1, column=0, columnspan=2, sticky='nsew')
-        self.grid_rowconfigure(1, weight=1)
+        self.log.grid(row=log_row, column=0, columnspan=2, sticky='nsew', padx=10, pady=10)
+        self.grid_rowconfigure(log_row, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
         # Setup color tags
@@ -42,8 +48,10 @@ class ProxyTab(ttk.Frame):
     def _start(self):
         try:
             self.proxy_controller.start_proxy()
-            self.start_btn.config(state='disabled')
-            self.stop_btn.config(state='normal')
+            if self.start_btn:
+                self.start_btn.config(state='disabled')
+            if self.stop_btn:
+                self.stop_btn.config(state='normal')
             self.status_bar.set_state('running')
             self._append_json_log({"color": "blue", "weight": "bold", "lines": ["Proxy started successfully."]})
         except Exception as e:
@@ -57,8 +65,10 @@ class ProxyTab(ttk.Frame):
     def _stop(self):
         try:
             self.proxy_controller.stop_proxy()
-            self.start_btn.config(state='normal')
-            self.stop_btn.config(state='disabled')
+            if self.start_btn:
+                self.start_btn.config(state='normal')
+            if self.stop_btn:
+                self.stop_btn.config(state='disabled')
             self.status_bar.set_state('stopped')
             self._append_json_log({"color": "blue", "weight": "bold", "lines": ["Proxy stopped successfully."]})
         except Exception as e:
