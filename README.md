@@ -164,7 +164,7 @@ tzmcp   # launch GUI (entry point)
 
 ### Project Metadata
 
-- **Python version**: 3.8+
+- **Python version**: 3.12+
 - **Platform**: Windows, Linux, macOS (via tkinter + mitmproxy)
 - **License**: MIT
 - **Dependencies**:

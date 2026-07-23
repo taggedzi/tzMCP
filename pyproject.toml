@@ -8,9 +8,9 @@ version = "0.0.1"
 description = "A Media Download Proxy. Using mitmproxy to allow download of media from browsed sites, including html, css, js, images, and other media types."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 keywords = [ "Media Download Proxy", "Mitmproxy", "HTML", "CSS", "JavaScript", "Images", "Other Media Types", "Download Proxy",]
-classifiers = [ "Programming Language :: Python :: 3", "Operating System :: OS Independent", "Development Status :: 3 - Alpha", "Environment :: Console", "Environment :: X11 Applications :: tkinter", "Topic :: Utilities",]
+classifiers = [ "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.12", "Programming Language :: Python :: 3.13", "Operating System :: OS Independent", "Development Status :: 3 - Alpha", "Environment :: Console", "Environment :: X11 Applications :: tkinter", "Topic :: Utilities",]
 dependencies = [ ]
 [[project.authors]]
 name = "Matthew Craig"

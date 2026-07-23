@@ -8,7 +8,7 @@ This project lets you capture and filter media from websites using a proxy with 
 
 ## 🛠️ System Requirements
 
-- **Python** 3.8 or higher (Windows, Linux, macOS)
+- **Python** 3.12 or higher (Windows, Linux, macOS)
 - Recommended: A virtual environment (for isolation)
 - Internet access to install dependencies
 - Optional: A portable web browser (Chrome, Firefox, etc.)
