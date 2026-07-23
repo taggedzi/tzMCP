@@ -19,13 +19,10 @@ jobs:
         include:
           - os: ubuntu-latest
             python-version: '3.12'
-            python-command: python3.12
           - os: ubuntu-latest
             python-version: '3.13'
-            python-command: python3.13
           - os: windows-latest
             python-version: '3.12'
-            python-command: py -3.12
 
     steps:
       - name: Check out the workflow revision
@@ -37,9 +34,28 @@ jobs:
           git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
           git checkout --detach FETCH_HEAD
+      - name: Select Python on Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python_dir="$(find "$RUNNER_TOOL_CACHE/Python" -mindepth 2 -maxdepth 2 -type d -path "*/${{ matrix.python-version }}.*/x64" | sort -V | tail -n 1)"
+          test -n "$python_dir"
+          echo "$python_dir/bin" >> "$GITHUB_PATH"
+      - name: Select Python on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pythonDir = Get-ChildItem "$env:RUNNER_TOOL_CACHE\Python" -Directory |
+            Where-Object { $_.Name -like '${{ matrix.python-version }}.*' } |
+            Sort-Object Name -Descending |
+            Select-Object -First 1 |
+            ForEach-Object { Join-Path $_.FullName 'x64' }
+          if (-not $pythonDir) { throw "Python ${{ matrix.python-version }} is not installed." }
+          $pythonDir | Add-Content -Path $env:GITHUB_PATH
+          (Join-Path $pythonDir 'Scripts') | Add-Content -Path $env:GITHUB_PATH
       - name: Install test dependencies
         run: >
-          ${{ matrix.python-command }} -m pip install --upgrade pip
-          && ${{ matrix.python-command }} -m pip install ".[dev]" PyYAML Pillow filetype requests
+          python -m pip install --upgrade pip
+          && python -m pip install ".[dev]" PyYAML Pillow filetype requests
       - name: Run unit tests
-        run: ${{ matrix.python-command }} -m pytest tests/unit -q
+        run: python -m pytest tests/unit -q
