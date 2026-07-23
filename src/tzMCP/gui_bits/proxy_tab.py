@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import scrolledtext, ttk
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
+from tzMCP.common_utils.log_config import log_gui
 
 class ProxyTab(ttk.Frame):
     def __init__(self, master, proxy_controller, status_bar, gui_queue):
@@ -46,6 +47,10 @@ class ProxyTab(ttk.Frame):
             self.status_bar.set_state('running')
             self._append_json_log({"color": "blue", "weight": "bold", "lines": ["Proxy started successfully."]})
         except Exception as e:
+            log_gui.exception(
+                "Could not start the proxy. Check that the configured port is free and "
+                "that mitmproxy is installed in the active environment."
+            )
             self._append_json_log({"color": "red", "weight": "bold", "lines": [f"Error starting proxy: {e}"]})
             self.status_bar.set_state('error')
 
@@ -57,6 +62,10 @@ class ProxyTab(ttk.Frame):
             self.status_bar.set_state('stopped')
             self._append_json_log({"color": "blue", "weight": "bold", "lines": ["Proxy stopped successfully."]})
         except Exception as e:
+            log_gui.exception(
+                "Could not stop the proxy. Retry the stop action; if it persists, close "
+                "tzMCP and check for a remaining mitmdump process."
+            )
             self._append_json_log({"color": "red", "weight": "bold", "lines": [f"Failed to stop proxy: {e}"]})
 
     def _start_log_drain_thread(self):
