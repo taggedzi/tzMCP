@@ -64,7 +64,10 @@ def setup_logging():
     }
 
     for logger, file_path in logger_map.items():
-        logger.setLevel(level)
+        # Console diagnostics are a support surface for the GUI.  Keep warnings
+        # and errors visible even when the user has configured a quieter level
+        # for the in-app or file log.
+        logger.setLevel(min(level, logging.WARNING))
 
         # Prevent duplicate handlers
         if logger.hasHandlers():
@@ -72,9 +75,9 @@ def setup_logging():
 
         formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
 
-        # Console output (always shown)
+        # Console output for actionable diagnostics (always shown).
         ch = logging.StreamHandler()
-        ch.setLevel(level)
+        ch.setLevel(logging.WARNING)
         ch.setFormatter(formatter)
         logger.addHandler(ch)
 

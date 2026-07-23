@@ -61,8 +61,20 @@ class MainApp(tk.Tk):
                 if self.proxy_controller.process is None:
                     self.proxy_controller.proxy_port = new_config.proxy_port
             except Exception as e:
+                log_gui.exception(
+                    "Could not reload the configuration. Check the configuration values "
+                    "and correct any invalid entries before trying again."
+                )
                 from tkinter import messagebox
                 messagebox.showerror("Error", f"Failed to reload config: {e}")
+
+    def report_callback_exception(self, exc, val, tb):
+        """Report unexpected Tk callback failures to the console with a traceback."""
+        log_gui.critical(
+            "Unexpected GUI error. Restart tzMCP and retry the action; if it persists, "
+            "include this traceback in a bug report.",
+            exc_info=(exc, val, tb),
+        )
 
     def build_ui(self):
         # Notebook for tabs
@@ -105,7 +117,15 @@ class MainApp(tk.Tk):
         self.mainloop()
 
 def main():
-    MainApp().run()
+    try:
+        MainApp().run()
+    except Exception:
+        log_gui.critical(
+            "tzMCP could not start. Review the traceback below, then check the "
+            "configuration and installation before retrying.",
+            exc_info=True,
+        )
+        raise
 
 
 if __name__ == "__main__":

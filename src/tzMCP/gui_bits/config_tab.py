@@ -185,5 +185,8 @@ class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-in
             messagebox.showinfo("Success", "Configuration saved successfully.")
             self.config = new_cfg
         except Exception as e:  # pylint: disable=broad-exception-caught
-            log_gui.error(f"Failed to save config: {e}")    # pylint: disable=logging-fstring-interpolation
+            log_gui.exception(
+                "Could not save the configuration. Correct the highlighted values or check "
+                "write permission for the tzMCP configuration directory."
+            )
             messagebox.showerror("Error", f"Failed to save config: {e}")

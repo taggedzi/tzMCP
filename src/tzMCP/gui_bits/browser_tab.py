@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 from tzMCP.gui_bits.browser_launcher import launch_browser, detect_browser_name
 from tzMCP.paths import config_dir
+from tzMCP.common_utils.log_config import log_gui
 
 CONFIG_PATH = config_dir() / "browser_paths.yaml"
 
@@ -75,10 +76,20 @@ class BrowserTab(ttk.Frame):
         try:
             browser_name = detect_browser_name(path_obj)
         except ValueError:
+            log_gui.warning(
+                "Unsupported browser selected: %s. Choose a supported browser executable "
+                "(Chrome, Firefox, Brave, Opera, Vivaldi, Iron, K-Meleon, LibreWolf, or SeaMonkey).",
+                path_obj,
+            )
             messagebox.showerror("Error", "Unsupported or unknown browser type.")
             return
 
         if path_obj.stem.lower() in {"iron", "firefoxportable", "braveportable"}:
+            log_gui.warning(
+                "Selected browser binary may be a wrapper: %s. Choose the browser executable "
+                "inside the application folder if launching fails.",
+                path_obj,
+            )
             messagebox.showwarning(
                 "Unsupported Wrapper",
                 f"The selected binary ({path_obj.name}) may be a wrapper. Please choose the actual browser binary inside the application folder."
@@ -123,14 +134,24 @@ class BrowserTab(ttk.Frame):
         selected_label = self.selected_browser.get()
         internal_name = next((k for k, v in self.display_names.items() if v == selected_label), None)
         if not internal_name:
+            log_gui.warning("Browser launch requested without a selected configured browser.")
             messagebox.showerror("Error", f"Browser path not found for selection: {selected_label}")
             return
 
         path = self.browser_paths.get(internal_name)
         if not path:
+            log_gui.warning(
+                "Configured browser entry %r has no executable path. Remove or re-add it "
+                "in the Browser Launch tab.",
+                internal_name,
+            )
             messagebox.showerror("Error", f"Browser path for '{internal_name}' not found.")
             return
         try:
             launch_browser(Path(path), self.launch_url.get(), self.proxy_controller.proxy_port, self.use_incognito.get())
         except Exception as e:
+            log_gui.exception(
+                "Could not launch the browser. Confirm that its executable still exists and "
+                "is allowed to start, then retry."
+            )
             messagebox.showerror("Launch Failed", str(e))

@@ -1,5 +1,9 @@
 import ast
+import logging
 from pathlib import Path
+from types import SimpleNamespace
+
+from tzMCP.common_utils import log_config
 
 
 
@@ -29,3 +33,20 @@ def test_gui_module_invokes_main_when_run_as_a_module():
         for guard in main_guards
         for statement in guard.body
     )
+
+
+def test_console_keeps_warnings_visible_when_gui_log_level_is_error(monkeypatch, tmp_path, capsys):
+    """GUI support diagnostics must not be hidden by the in-app log level."""
+    monkeypatch.setattr(
+        log_config,
+        "get_config",
+        lambda: SimpleNamespace(log_to_file=False, log_level="ERROR"),
+    )
+    monkeypatch.setattr(log_config, "logs_dir", lambda: tmp_path / "logs")
+
+    log_config.setup_logging()
+    log_config.log_gui.warning("Browser executable is missing; re-add it in the GUI.")
+
+    captured = capsys.readouterr()
+    assert "[WARNING] Browser executable is missing" in captured.err
+    assert log_config.log_gui.level == logging.WARNING
