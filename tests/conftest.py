@@ -49,9 +49,14 @@ def _silence_gui_log(monkeypatch):
 def _default_isolated_save_dir(tmp_path, monkeypatch):
     """Point the default Config.save_dir at tmp_path so any bare Config()
     that gets validated never mkdirs the real cache directory."""
-    monkeypatch.setattr(
-        Config, "save_dir", tmp_path / "cache", raising=False
-    )
+    original_init = Config.__init__
+
+    def isolated_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        if not args and "save_dir" not in kwargs:
+            self.save_dir = tmp_path / "cache"
+
+    monkeypatch.setattr(Config, "__init__", isolated_init)
 
 
 # --------------------------------------------------------------------------
