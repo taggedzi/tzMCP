@@ -6,10 +6,10 @@
 
 ## 🧠 How It Works
 
-tzMCP runs a local proxy on:
+tzMCP runs a local proxy on the configured port (by default):
 
 ```
-127.0.0.1:8080
+127.0.0.1:8888
 ```
 
 When you launch a browser through tzMCP, it:
@@ -40,7 +40,7 @@ That’s it! The browser will open and all its traffic will be routed through tz
 
 ## 🧪 What Happens Under the Hood
 
-- tzMCP configures the browser to use `127.0.0.1:8080`
+- tzMCP configures the browser to use the configured local proxy port
 - If it’s a new session, it creates a fresh user profile
 - When the app closes, it automatically:
   - Stops the proxy
@@ -57,7 +57,7 @@ If you **really want to configure your own browser manually**, here’s how:
 2. Set the HTTP and HTTPS proxy to:
    ```
    127.0.0.1
-   Port: 8080
+   Port: 8888 (or the `proxy_port` in `media_proxy_config.yaml`)
    ```
 3. Save and restart your browser
 
@@ -87,4 +87,3 @@ Only traffic going through the selected browser is captured. This protects:
 ---
 
 Let tzMCP handle the proxy setup so you can focus on browsing and capturing content — without breaking your system.
-

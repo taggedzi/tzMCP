@@ -8,6 +8,7 @@ from tzMCP.paths import data_dir, config_dir
 
 @dataclass
 class Config:
+    proxy_port: int = 8888
     save_dir: Path = field(default_factory=lambda: data_dir() / "cache")
     allowed_mime_groups: list[str] = field(default_factory=list)
     whitelist: List[str] = field(default_factory=list)
@@ -43,6 +44,17 @@ class ConfigManager:
         self._log_fn = log_fn
 
     def _validate_config(self, config: Config) -> Config:
+        # TCP ports are user-controlled configuration and must be valid before
+        # they are passed to mitmproxy.
+        if isinstance(config.proxy_port, bool):
+            raise ValueError("Invalid proxy_port: must be an integer from 1 to 65535")
+        try:
+            config.proxy_port = int(config.proxy_port)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid proxy_port: must be an integer from 1 to 65535") from exc
+        if not 1 <= config.proxy_port <= 65535:
+            raise ValueError("Invalid proxy_port: must be an integer from 1 to 65535")
+
         # Ensure save_dir is absolute and writable
         if not config.save_dir.is_absolute():
             config.save_dir = config.save_dir.resolve()

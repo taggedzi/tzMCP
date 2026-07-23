@@ -31,28 +31,32 @@ class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-in
         tk.Entry(proxy_frame, textvariable=self.save_dir_var, width=40).grid(row=0, column=1, sticky='ew', padx=5, pady=2)
         tk.Button(proxy_frame, text="Browse", command=self._browse).grid(row=0, column=2, padx=5, pady=2)
 
-        tk.Label(proxy_frame, text="Allowed MIME Groups:").grid(row=1, column=0, sticky='nw', padx=5, pady=2)
+        tk.Label(proxy_frame, text="Proxy Port:").grid(row=1, column=0, sticky='w', padx=5, pady=2)
+        self.proxy_port = tk.IntVar(value=self.config.proxy_port)
+        tk.Entry(proxy_frame, textvariable=self.proxy_port, width=10).grid(row=1, column=1, sticky='w', padx=5, pady=2)
+
+        tk.Label(proxy_frame, text="Allowed MIME Groups:").grid(row=2, column=0, sticky='nw', padx=5, pady=2)
         mime_frame = ttk.Frame(proxy_frame)
-        mime_frame.grid(row=1, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        mime_frame.grid(row=2, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
         for i, group in enumerate(MIME_GROUPS.keys()):
             var = tk.BooleanVar(value=group in self.config.allowed_mime_groups)
             cb = tk.Checkbutton(mime_frame, text=group.capitalize(), variable=var)
             cb.grid(row=0, column=i, sticky='w')
             self.mime_group_vars[group] = var
 
-        tk.Label(proxy_frame, text="Whitelist Domains (one per line):").grid(row=2, column=0, sticky='nw', padx=5, pady=2)
+        tk.Label(proxy_frame, text="Whitelist Domains (one per line):").grid(row=3, column=0, sticky='nw', padx=5, pady=2)
         self.whitelist_box = tk.Text(proxy_frame, height=4, width=40)
-        self.whitelist_box.grid(row=2, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        self.whitelist_box.grid(row=3, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
         self.whitelist_box.insert(tk.END, '\n'.join(self.config.whitelist))
 
-        tk.Label(proxy_frame, text="Blacklist Domains (one per line):").grid(row=3, column=0, sticky='nw', padx=5, pady=2)
+        tk.Label(proxy_frame, text="Blacklist Domains (one per line):").grid(row=4, column=0, sticky='nw', padx=5, pady=2)
         self.blacklist_box = tk.Text(proxy_frame, height=4, width=40)
-        self.blacklist_box.grid(row=3, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        self.blacklist_box.grid(row=4, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
         self.blacklist_box.insert(tk.END, '\n'.join(self.config.blacklist))
 
-        tk.Label(proxy_frame, text="File Size Filter (bytes):").grid(row=4, column=0, sticky='nw', padx=5, pady=2)
+        tk.Label(proxy_frame, text="File Size Filter (bytes):").grid(row=5, column=0, sticky='nw', padx=5, pady=2)
         fs_frame = ttk.Frame(proxy_frame)
-        fs_frame.grid(row=4, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        fs_frame.grid(row=5, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
         self.min_bytes = tk.IntVar(value=self.config.filter_file_size.get("min_bytes", 1))
         self.max_bytes = tk.IntVar(value=self.config.filter_file_size.get("max_bytes", 157286400))
         tk.Label(fs_frame, text="Min:").grid(row=0, column=0, padx=2)
@@ -60,9 +64,9 @@ class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-in
         tk.Label(fs_frame, text="Max:").grid(row=0, column=2, padx=2)
         tk.Entry(fs_frame, textvariable=self.max_bytes, width=10).grid(row=0, column=3, padx=2)
 
-        tk.Label(proxy_frame, text="Image Dimension Filter:").grid(row=5, column=0, sticky='nw', padx=5, pady=2)
+        tk.Label(proxy_frame, text="Image Dimension Filter:").grid(row=6, column=0, sticky='nw', padx=5, pady=2)
         pd_frame = ttk.Frame(proxy_frame)
-        pd_frame.grid(row=5, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
+        pd_frame.grid(row=6, column=1, columnspan=2, sticky='ew', padx=5, pady=2)
         self.min_width = tk.IntVar(value=self.config.filter_pixel_dimensions.get("min_width", 1))
         self.min_height = tk.IntVar(value=self.config.filter_pixel_dimensions.get("min_height", 1))
         self.max_width = tk.IntVar(value=self.config.filter_pixel_dimensions.get("max_width", 12000))
@@ -130,6 +134,7 @@ class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-in
         """Reload the config."""
         self.config = config
         self.save_dir_var.set(str(config.save_dir))
+        self.proxy_port.set(config.proxy_port)
         for group, var in self.mime_group_vars.items():
             var.set(group in config.allowed_mime_groups)
         self.whitelist_box.delete("1.0", tk.END)
@@ -152,6 +157,7 @@ class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-in
         try:
             selected_mime_groups = [group for group, var in self.mime_group_vars.items() if var.get()]
             new_cfg = Config(
+                proxy_port=self.proxy_port.get(),
                 save_dir=Path(self.save_dir_var.get()),
                 whitelist=[line.strip() for line in self.whitelist_box.get("1.0", tk.END).splitlines() if line.strip()],
                 blacklist=[line.strip() for line in self.blacklist_box.get("1.0", tk.END).splitlines() if line.strip()],

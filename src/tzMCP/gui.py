@@ -38,7 +38,7 @@ class MainApp(tk.Tk):
         self.config        = self.config_manager.load_config()
         self.proxy_controller = ProxyController(
             proxy_executable_path=str(Path(__file__).parent / "save_media.py"),
-            proxy_port=8080
+            proxy_port=self.config.proxy_port,
         )
         
         # Setup the GUI http logging server
@@ -57,6 +57,8 @@ class MainApp(tk.Tk):
                 new_config = self.config_manager.load_config()
                 selected_tab.reload_config(new_config)
                 self.config = new_config
+                if self.proxy_controller.process is None:
+                    self.proxy_controller.proxy_port = new_config.proxy_port
             except Exception as e:
                 from tkinter import messagebox
                 messagebox.showerror("Error", f"Failed to reload config: {e}")

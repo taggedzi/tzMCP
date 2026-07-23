@@ -8,6 +8,7 @@ def _args(tmp_path, **overrides):
     """A Namespace matching parse_args() defaults, with a tmp config path."""
     base = dict(
         config=str(tmp_path / "config" / "media_proxy_config.yaml"),
+        proxy_port=None,
         save_dir=None, mime_groups=None, whitelist=None, blacklist=None,
         min_bytes=None, max_bytes=None, min_width=None, max_width=None,
         min_height=None, max_height=None, log_to_file=False, log_level=None,
@@ -22,12 +23,14 @@ def test_build_config_defaults(tmp_path):
     assert cfg.log_level == "INFO"
     assert cfg.auto_reload_config is True
     assert cfg.enable_persistent_dedup is False
+    assert cfg.proxy_port == 8888
 
 
 def test_build_config_applies_overrides(tmp_path):
     cfg = cli.build_config(_args(
         tmp_path,
         save_dir=str(tmp_path / "custom"),
+        proxy_port=9876,
         mime_groups=["image", "video"],
         whitelist=["a.com"],
         blacklist=["b.com"],
@@ -52,6 +55,7 @@ def test_build_config_applies_overrides(tmp_path):
     assert cfg.log_to_file is True
     assert cfg.log_level == "DEBUG"
     assert cfg.enable_persistent_dedup is True
+    assert cfg.proxy_port == 9876
     assert cfg.auto_reload_config is False
 
 
