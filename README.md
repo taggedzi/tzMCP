@@ -263,10 +263,10 @@ load/save, hash-based deduplication, the CLI config merge, and the
 It is fully isolated and never touches your real `config/`, `logs/`, or
 `cache/` directories.
 
-> Two `xfail` tests document a known defect: the domain whitelist/blacklist
-> matches by substring rather than regex, so regex entries in the default
-> config do not fire. See
-> `docs/superpowers/specs/2026-07-22-test-suite-design.md`.
+Domain whitelist/blacklist entries are matched as regular expressions (with a
+literal-substring fallback for entries that are not valid regexes), so the
+regex patterns in the default config — e.g. `.*\.doubleclick\.net` — work as
+written.
 
 ---
 

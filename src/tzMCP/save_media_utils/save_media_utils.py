@@ -131,18 +131,35 @@ def is_file_size_out_of_bounds(size:int, fname:str = None):
     log_duration("is_file_size_out_of_bounds() ", start_is_domain_blocked_by_whitelist_check)
     return response
 
+def _domain_matches(netloc: str, patterns) -> bool:
+    """Return True if any pattern matches the host.
+
+    Each pattern is treated as a regex (matching the CLI's "regex or
+    substring" contract and the regex entries in the default config). If a
+    pattern is not a valid regex, it falls back to a literal substring check
+    so a bad entry cannot raise mid-response.
+    """
+    for pattern in patterns:
+        try:
+            if re.search(pattern, netloc):
+                return True
+        except re.error:
+            if pattern in netloc:
+                return True
+    return False
+
 def is_domain_blocked_by_whitelist(url:str, fname:str = None):
     """
-    Check domain whitelist 
+    Check domain whitelist
     IF whitelist is NOT set (ie []), then allow all domains
-    IF whitelist is set, then only allow domains that are in the list
+    IF whitelist is set, then only allow domains that match an entry
     """
     start_is_domain_blocked_by_whitelist_check = perf_counter()
     response = False
     config = get_config()
     if config.whitelist:
         netloc = urlparse(url).hostname or ""
-        if not any(domain in netloc for domain in config.whitelist):
+        if not _domain_matches(netloc, config.whitelist):
             log_proxy.info(f"⏭ Skipped {fname} URL: {sanitize_url(url)} Reason: domain not in whitelist.")
             response = True
     log_duration("is_domain_blocked_by_whitelist() ", start_is_domain_blocked_by_whitelist_check)
@@ -150,16 +167,16 @@ def is_domain_blocked_by_whitelist(url:str, fname:str = None):
 
 def is_domain_blacklisted(url:str, fname:str = None):
     """
-    Check domain blacklist 
+    Check domain blacklist
     IF blacklist is NOT set (ie []), then allow all domains
-    IF blacklist is set, then only allow domains that are not in the list
+    IF blacklist is set, then only allow domains that match no entry
     """
     start_is_domian_blacklisted_check = perf_counter()
     response = False
     config = get_config()
     if config.blacklist:
         netloc = urlparse(url).hostname or ""
-        if any(domain in netloc for domain in config.blacklist):
+        if _domain_matches(netloc, config.blacklist):
             log_proxy.info(f"⏭ Skipped {fname} URL: {sanitize_url(url)} Reason: domain in blacklist.")
             response = True
     log_duration("is_domain_blacklisted() ", start_is_domian_blacklisted_check)
