@@ -2,7 +2,7 @@
 
 ## Project at a glance
 
-tzMCP is a Python 3.8+ GUI/CLI media-capture proxy built on `mitmproxy`.
+tzMCP is a Python 3.12+ GUI/CLI media-capture proxy built on `mitmproxy`.
 Runtime code lives in `src/tzMCP/`; tests live in `tests/`. The app handles
 untrusted network content and writes files to disk, so correctness and secure
 path/content handling take priority over cleverness.
