@@ -247,14 +247,26 @@ tzmcp   # launch GUI (entry point)
 
 ---
 
-## 🧪 Testing (Coming Soon)
+## 🧪 Testing
 
-We're planning unit tests for:
+Run the suite with pytest (no install required — `pyproject.toml` sets
+`pythonpath = ["src"]`):
 
-- config validation
-- MIME filters
-- duplicate handling
-- CLI interface
+```bash
+pytest              # or: invoke test
+pytest --cov=tzMCP  # or: invoke coverage
+```
+
+The suite covers the media filters and sanitizers, config validation and
+load/save, hash-based deduplication, the CLI config merge, and the
+`MediaSaver.response()` capture pipeline (driven by mocked mitmproxy flows).
+It is fully isolated and never touches your real `config/`, `logs/`, or
+`cache/` directories.
+
+> Two `xfail` tests document a known defect: the domain whitelist/blacklist
+> matches by substring rather than regex, so regex entries in the default
+> config do not fire. See
+> `docs/superpowers/specs/2026-07-22-test-suite-design.md`.
 
 ---
 
