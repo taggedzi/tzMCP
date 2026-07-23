@@ -17,8 +17,11 @@ def smart_regex(domain):
         domain_core = '.'.join(parts[-2:])
         subdomain = parts[0]
         if re.match(r'^[a-zA-Z\-]*\d+[a-zA-Z\-]*$', subdomain):
-            sub_regex = re.sub(r'\d+', r'[0-9]+', subdomain)
-            return f"{re.escape(sub_regex)}\\.{re.escape(domain_core)}"
+            sub_regex = ''.join(
+                '[0-9]+' if segment.isdigit() else re.escape(segment)
+                for segment in re.split(r'(\d+)', subdomain)
+            )
+            return f"{sub_regex}\\.{re.escape(domain_core)}"
         else:
             return f".*\\.{re.escape(domain_core)}"
     else:

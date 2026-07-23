@@ -119,9 +119,9 @@ options:
   --mime-groups [MIME_GROUPS ...]
                         List of allowed MIME groups
   --whitelist [WHITELIST ...]
-                        Domain whitelist (regex or substring)
+                        Domain whitelist (domain or regex)
   --blacklist [BLACKLIST ...]
-                        Domain blacklist (regex or substring)
+                        Domain blacklist (domain or regex)
   --min-bytes MIN_BYTES
                         Minimum file size in bytes
   --max-bytes MAX_BYTES
@@ -263,10 +263,10 @@ load/save, hash-based deduplication, the CLI config merge, and the
 It is fully isolated and never touches your real `config/`, `logs/`, or
 `cache/` directories.
 
-Domain whitelist/blacklist entries are matched as regular expressions (with a
-literal-substring fallback for entries that are not valid regexes), so the
-regex patterns in the default config — e.g. `.*\.doubleclick\.net` — work as
-written.
+Domain whitelist/blacklist entries that are bare hostnames (for example,
+`example.com`) match that domain and its subdomains, but not lookalikes such
+as `notexample.com`. Entries containing regex syntax are matched as regular
+expressions, so patterns such as `.*\.doubleclick\.net` work as written.
 
 ---
 

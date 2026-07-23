@@ -112,15 +112,30 @@ def test_size_filter_disabled(isolated_config):
     assert smu.is_file_size_out_of_bounds(999999) is False
 
 
-# ---- is_domain_blocked_by_whitelist (current SUBSTRING behavior) ---------
+# ---- is_domain_blocked_by_whitelist --------------------------------------
 def test_whitelist_empty_allows_all(isolated_config):
     isolated_config(whitelist=[])
     assert smu.is_domain_blocked_by_whitelist("http://any.com/x") is False
 
 
-def test_whitelist_substring_match_allows(isolated_config):
+def test_whitelist_domain_match_allows_subdomains(isolated_config):
     isolated_config(whitelist=["example.com"])
     assert smu.is_domain_blocked_by_whitelist("http://www.example.com/x") is False
+
+
+def test_whitelist_domain_match_allows_apex_domain(isolated_config):
+    isolated_config(whitelist=["example.com"])
+    assert smu.is_domain_blocked_by_whitelist("http://example.com/x") is False
+
+
+def test_whitelist_domain_match_rejects_lookalike_host(isolated_config):
+    isolated_config(whitelist=["example.com"])
+    assert smu.is_domain_blocked_by_whitelist("http://notexample.com/x") is True
+
+
+def test_whitelist_domain_match_does_not_treat_dot_as_wildcard(isolated_config):
+    isolated_config(whitelist=["example.com"])
+    assert smu.is_domain_blocked_by_whitelist("http://exampleXcom/x") is True
 
 
 def test_whitelist_non_match_blocks(isolated_config):
@@ -128,15 +143,20 @@ def test_whitelist_non_match_blocks(isolated_config):
     assert smu.is_domain_blocked_by_whitelist("http://other.org/x") is True
 
 
-# ---- is_domain_blacklisted (current SUBSTRING behavior) ------------------
+# ---- is_domain_blacklisted ------------------------------------------------
 def test_blacklist_empty_allows_all(isolated_config):
     isolated_config(blacklist=[])
     assert smu.is_domain_blacklisted("http://any.com/x") is False
 
 
-def test_blacklist_substring_match_blocks(isolated_config):
+def test_blacklist_domain_match_blocks_subdomains(isolated_config):
     isolated_config(blacklist=["doubleclick.net"])
     assert smu.is_domain_blacklisted("http://ads.doubleclick.net/x") is True
+
+
+def test_blacklist_domain_match_does_not_block_lookalike_host(isolated_config):
+    isolated_config(blacklist=["doubleclick.net"])
+    assert smu.is_domain_blacklisted("http://notdoubleclick.net/x") is False
 
 
 def test_blacklist_non_match_allows(isolated_config):
@@ -165,9 +185,7 @@ def test_whitelist_regex_blocks_non_matching_host(isolated_config):
     assert smu.is_domain_blocked_by_whitelist("http://cdn.other.com/x") is True
 
 
-def test_blacklist_invalid_regex_does_not_raise(isolated_config):
-    # An unbalanced bracket is not a valid regex; matching must degrade to a
-    # literal substring check rather than raising re.error.
+def test_blacklist_invalid_regex_is_ignored(isolated_config):
     isolated_config(blacklist=["bad[regex"])
     assert smu.is_domain_blacklisted("http://safe.example.com/x") is False
 
