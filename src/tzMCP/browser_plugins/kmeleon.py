@@ -1,8 +1,9 @@
 from pathlib import Path
 from typing import List, Tuple
+from tzMCP.paths import profiles_dir
 
 def setup_browser(path: Path, url: str, proxy_port: int, incognito: bool) -> Tuple[List[str], Path]:
-    base_profile_dir = Path("profiles") / "kmeleon"
+    base_profile_dir = profiles_dir() / "kmeleon"
     profile_name = "default"
     profile_dir = base_profile_dir / profile_name
     profile_dir.mkdir(parents=True, exist_ok=True)

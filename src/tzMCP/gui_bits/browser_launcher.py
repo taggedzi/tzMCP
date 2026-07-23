@@ -4,11 +4,12 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Optional, Tuple
+from tzMCP.paths import profiles_dir
 import psutil
 import time
 import importlib
 
-APP_PROFILE_BASE = Path(__file__).parent.parent.parent.parent / "profiles"
+APP_PROFILE_BASE = profiles_dir()
 APP_PROFILE_BASE.mkdir(parents=True, exist_ok=True)
 
 # Global tracking for cleanup
