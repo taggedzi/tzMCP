@@ -134,18 +134,23 @@ def is_file_size_out_of_bounds(size:int, fname:str = None):
 def _domain_matches(netloc: str, patterns) -> bool:
     """Return True if any pattern matches the host.
 
-    Each pattern is treated as a regex (matching the CLI's "regex or
-    substring" contract and the regex entries in the default config). If a
-    pattern is not a valid regex, it falls back to a literal substring check
-    so a bad entry cannot raise mid-response.
+    Bare domain entries match that domain and its subdomains. Entries that
+    contain regex syntax are matched as regular expressions. This keeps a
+    common entry such as ``example.com`` from treating ``.`` as a wildcard or
+    matching a lookalike host such as ``notexample.com``.
     """
     for pattern in patterns:
+        if re.fullmatch(r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*", pattern):
+            domain = pattern.lower()
+            if netloc == domain or netloc.endswith(f".{domain}"):
+                return True
+            continue
+
         try:
             if re.search(pattern, netloc):
                 return True
         except re.error:
-            if pattern in netloc:
-                return True
+            log_proxy.warning("Ignoring invalid domain regex: %r", pattern)
     return False
 
 def is_domain_blocked_by_whitelist(url:str, fname:str = None):

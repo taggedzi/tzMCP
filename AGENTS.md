@@ -75,17 +75,18 @@ expensive capable option:
 ## Common commands
 
 ```powershell
-pytest
-pytest tests/unit/test_config_manager.py -q
-pytest tests/integration/test_media_saver_response.py -q
-pytest --cov=tzMCP
-python -m tzMCP.cli --help
+.\venv\Scripts\pytest.exe
+.\venv\Scripts\pytest.exe tests/unit/test_config_manager.py -q
+.\venv\Scripts\pytest.exe tests/integration/test_media_saver_response.py -q
+.\venv\Scripts\pytest.exe --cov=tzMCP
+.\venv\Scripts\python.exe -m tzMCP.cli --help
 ```
 
 `pyproject.toml` configures pytest with `pythonpath = ["src"]`, so an editable
-install is not required to run the suite. Dependencies are pinned in
-`requirements.txt`; do not casually change them or add undeclared runtime
-dependencies.
+install is not required to run the suite. Use the repository's `venv`; the
+system Python does not contain the project dependencies. Dependencies are
+pinned in `requirements.txt`; do not casually change them or add undeclared
+runtime dependencies.
 
 ## Completion checklist
 

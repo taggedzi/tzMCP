@@ -1,0 +1,3 @@
+# Keep repository text files in a single, cross-platform line-ending format.
+# Git continues to detect binary files automatically.
+* text=auto eol=lf

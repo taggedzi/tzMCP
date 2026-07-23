@@ -68,5 +68,5 @@ venv/
 cache/
 whitelist_generated.yaml
 profiles/
-*.sqlite 
+*.sqlite
 .claude/settings.json
