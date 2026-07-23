@@ -17,7 +17,7 @@ name = "Matthew Craig"
 email = "taggedzi.mpc@gmail.com"
 
 [project.optional-dependencies]
-dev = [ "coverage==7.8.0", "invoke==2.2.0", "pdoc==15.0.3", "pytest==9.0.3", "pytest-cov==6.1.1", "pytest-qt==4.4.0", "toml==0.10.2",]
+dev = [ "coverage==7.8.0", "invoke==2.2.0", "pdoc==15.0.3", "pytest==9.0.3", "pytest-cov==6.1.1", "toml==0.10.2",]
 
 [project.scripts]
 tzMCP-cli = "tzMCP.cli:main"
@@ -29,6 +29,4 @@ Homepage = "https://github.com/taggedzi/tzMCP"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-# pytest-qt is an unused dev dep (the GUI is tkinter, not Qt); disable it so
-# collection does not fail when no Qt binding is installed.
-addopts = "-ra -p no:pytest-qt"
+addopts = "-ra"
