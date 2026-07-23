@@ -69,3 +69,4 @@ cache/
 whitelist_generated.yaml
 profiles/
 *.sqlite 
+.claude/settings.json
