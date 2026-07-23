@@ -19,21 +19,27 @@ jobs:
         include:
           - os: ubuntu-latest
             python-version: '3.12'
+            python-command: python3.12
           - os: ubuntu-latest
             python-version: '3.13'
+            python-command: python3.13
           - os: windows-latest
             python-version: '3.12'
+            python-command: py -3.12
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: pyproject.toml
+      - name: Check out the workflow revision
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
       - name: Install test dependencies
         run: >
-          python -m pip install --upgrade pip
-          && python -m pip install ".[dev]" PyYAML Pillow filetype requests
+          ${{ matrix.python-command }} -m pip install --upgrade pip
+          && ${{ matrix.python-command }} -m pip install ".[dev]" PyYAML Pillow filetype requests
       - name: Run unit tests
-        run: python -m pytest tests/unit -q
+        run: ${{ matrix.python-command }} -m pytest tests/unit -q
