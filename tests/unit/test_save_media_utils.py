@@ -144,24 +144,32 @@ def test_blacklist_non_match_allows(isolated_config):
     assert smu.is_domain_blacklisted("http://good.com/x") is False
 
 
-# ---- KNOWN DEFECT: matcher uses substring, not regex ---------------------
-# See docs/superpowers/specs/2026-07-22-test-suite-design.md.
-# These document the *intended* regex behavior; they xpass the day the
-# matcher is fixed (strict=True turns an unexpected pass into a failure).
-@pytest.mark.xfail(strict=True,
-                   reason="matcher uses substring, not regex; default "
-                          "blacklist should block ads.doubleclick.net")
-def test_blacklist_default_regex_should_block(isolated_config):
+# ---- domain matching honors regex (and plain substrings) -----------------
+def test_blacklist_default_regex_blocks(isolated_config):
     isolated_config()  # default blacklist ships regex entries
     assert smu.is_domain_blacklisted("http://ads.doubleclick.net/img.png") is True
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="matcher uses substring, not regex; a regex "
-                          "whitelist entry should allow a matching host")
-def test_whitelist_regex_should_allow(isolated_config):
+def test_blacklist_regex_ads_prefix_blocks(isolated_config):
+    isolated_config(blacklist=[r"ads\..*"])
+    assert smu.is_domain_blacklisted("http://ads.example.com/img.png") is True
+
+
+def test_whitelist_regex_allows_matching_host(isolated_config):
     isolated_config(whitelist=[r".*\.example\.com"])
     assert smu.is_domain_blocked_by_whitelist("http://cdn.example.com/x") is False
+
+
+def test_whitelist_regex_blocks_non_matching_host(isolated_config):
+    isolated_config(whitelist=[r".*\.example\.com"])
+    assert smu.is_domain_blocked_by_whitelist("http://cdn.other.com/x") is True
+
+
+def test_blacklist_invalid_regex_does_not_raise(isolated_config):
+    # An unbalanced bracket is not a valid regex; matching must degrade to a
+    # literal substring check rather than raising re.error.
+    isolated_config(blacklist=["bad[regex"])
+    assert smu.is_domain_blacklisted("http://safe.example.com/x") is False
 
 
 # ---- is_valid_image -------------------------------------------------------
