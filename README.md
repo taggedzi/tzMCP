@@ -29,9 +29,19 @@ It is secure-by-default, lightweight, and designed to be cross-platform and user
 
 ## 🖥️ GUI Overview
 
-- **Proxy Control Tab**: Start/Stop mitmdump and view logs
-- **Browser Launch Tab**: Manage and launch portable browsers
-- **Configuration Tab**: Modify save filters, MIME groups, domain settings, and logging
+The GUI opens on **Capture Session**, a single guided workflow:
+
+1. Start the local capture proxy.
+2. Choose a dedicated portable browser.
+3. Confirm the browser is not your everyday installed browser, then launch it.
+
+**Capture Rules** contains media filters, save location, and logging settings;
+**Activity** shows capture/proxy messages.
+
+> **Important:** mitmproxy decrypts traffic from the browser it launches. Do not
+> use accounts, passwords, payment details, or other sensitive credentials in a
+> capture session. Use a dedicated portable browser only. Launching an installed
+> everyday browser can interfere with, lock, or change its usual profile.
 
 ---
 

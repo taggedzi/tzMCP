@@ -50,3 +50,13 @@ def test_console_keeps_warnings_visible_when_gui_log_level_is_error(monkeypatch,
     captured = capsys.readouterr()
     assert "[WARNING] Browser executable is missing" in captured.err
     assert log_config.log_gui.level == logging.WARNING
+
+
+def test_capture_session_requires_a_portable_browser_acknowledgement():
+    """The guided UI must make the risky browser choice explicit."""
+    browser_tab = Path(__file__).parents[2] / "src" / "tzMCP" / "gui_bits" / "browser_tab.py"
+    source = browser_tab.read_text(encoding="utf-8")
+
+    assert "dedicated portable browser" in source
+    assert "payment details" in source
+    assert "safe_browser_acknowledged" in source

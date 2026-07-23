@@ -77,28 +77,30 @@ class MainApp(tk.Tk):
         )
 
     def build_ui(self):
-        # Notebook for tabs
+        self.geometry("900x700")
+        self.minsize(760, 560)
+        style = ttk.Style(self)
+        style.configure("Title.TLabel", font=("Segoe UI", 18, "bold"))
+        style.configure("Subtitle.TLabel", foreground="#5d6673")
+        style.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
+
         notebook = ttk.Notebook(self)
         notebook.pack(fill='both', expand=True)
         
         # Bind tab change event
         notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
 
-        # Proxy Control tab
         status = StatusBar(self)
         status.pack(side='bottom', fill='x')
 
-        self.proxy_tab = ProxyTab(notebook, self.proxy_controller, status, self.gui_queue)
-        notebook.add(self.proxy_tab, text="Proxy Control")
+        self.proxy_tab = ProxyTab(notebook, self.proxy_controller, status, self.gui_queue, show_controls=False)
+        browser_tab = BrowserTab(notebook, self.proxy_controller, status, self.proxy_tab._append_json_log)
+        notebook.add(browser_tab, text="Capture Session")
 
-        # Browser Launch tab
-        browser_tab = BrowserTab(notebook, self.proxy_controller)
-        notebook.add(browser_tab, text="Browser Launch")
-
-        # Configuration tab
         self.config_manager.set_logger(log_gui)
         config_tab = ConfigTab(notebook, self.config_manager, self.config)
-        notebook.add(config_tab, text="Configuration")
+        notebook.add(config_tab, text="Capture Rules")
+        notebook.add(self.proxy_tab, text="Activity")
 
     def _on_close(self):
         # stop the proxy if it’s still running and log it
