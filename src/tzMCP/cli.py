@@ -8,6 +8,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="tzMCP CLI Media Proxy")
 
     parser.add_argument('--config', type=str, help='Path to YAML config file')
+    parser.add_argument('--proxy-port', type=int, help='TCP port for the local proxy listener')
 
     # Explicit overrides (match config fields)
     parser.add_argument('--save-dir', type=str, help='Directory to save media files')
@@ -36,6 +37,8 @@ def build_config(args) -> Config:
     # Override with command-line arguments if present
     if args.save_dir:
         config.save_dir = Path(args.save_dir).resolve()
+    if args.proxy_port is not None:
+        config.proxy_port = args.proxy_port
     if args.mime_groups:
         config.allowed_mime_groups = args.mime_groups
     if args.whitelist:
@@ -69,9 +72,6 @@ def main():
     args = parse_args()
     config = build_config(args)
 
-    # OPTIONAL: save resolved config if you want to persist merged settings
-    ConfigManager().save_config(config)
-
     # Set it globally for utilities that call get_config()
     from tzMCP.save_media_utils import config_provider
     config_provider.set_config(config)
@@ -80,7 +80,11 @@ def main():
     from tzMCP.save_media import MediaSaver
     from mitmproxy.tools.main import mitmdump
     # This will behave like mitmproxy's -s entry point:
-    mitmdump(["-s", str(Path(__file__).parent / "save_media.py")])
+    mitmdump([
+        "--listen-host", "127.0.0.1",
+        "--listen-port", str(config.proxy_port),
+        "-s", str(Path(__file__).parent / "save_media.py"),
+    ])
 
 if __name__ == "__main__":
     main()

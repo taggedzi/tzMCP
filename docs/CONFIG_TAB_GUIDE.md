@@ -4,6 +4,20 @@ The **Configuration Tab** in tzMCP lets you control exactly what files get saved
 
 ---
 
+## 🔌 Proxy Port
+
+**What it does:**
+Sets the local TCP port where tzMCP listens for browser traffic. The default is
+`8888`.
+
+**How to use:**
+- Choose a port from `1` through `65535` that is not already used or reserved
+  by Windows.
+- The built-in browser launcher automatically uses this value.
+- Restart the proxy after changing it; a running proxy keeps its current port.
+
+---
+
 ## 🗂️ Save Directory
 
 **What it does:**  
@@ -144,4 +158,3 @@ These are safe to run and help keep your project folder tidy.
 - View logs in the GUI to understand what was skipped and why
 
 You’re in full control. Capture what you want, skip what you don’t.
-

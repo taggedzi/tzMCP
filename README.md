@@ -81,6 +81,8 @@ empty because executable locations are specific to each machine.
 ```yaml
 # Optional. If omitted, captures are saved to the application's data directory.
 # save_dir: /path/to/tzMCP-captures
+# Local listener used by tzMCP and its browser launcher.
+proxy_port: 8888
 allowed_mime_groups:
   - image
   - video
@@ -111,7 +113,7 @@ enable_persistent_dedup: false
 CLI is supported. Here are the parameters for the CLI.
 
 ```bash
-usage: tzMCP-cli [-h] [--config CONFIG] [--save-dir SAVE_DIR] [--mime-groups [MIME_GROUPS ...]]
+usage: tzMCP-cli [-h] [--config CONFIG] [--proxy-port PROXY_PORT] [--save-dir SAVE_DIR] [--mime-groups [MIME_GROUPS ...]]
                  [--whitelist [WHITELIST ...]] [--blacklist [BLACKLIST ...]] [--min-bytes MIN_BYTES]
                  [--max-bytes MAX_BYTES] [--min-width MIN_WIDTH] [--max-width MAX_WIDTH] [--min-height MIN_HEIGHT]
                  [--max-height MAX_HEIGHT] [--log-to-file] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--dedup]
@@ -122,6 +124,8 @@ tzMCP CLI Media Capture Proxy
 options:
   -h, --help            show this help message and exit
   --config CONFIG       Path to YAML config file
+  --proxy-port PROXY_PORT
+                        TCP port for the local proxy listener
   --save-dir SAVE_DIR   Directory to save media files
   --mime-groups [MIME_GROUPS ...]
                         List of allowed MIME groups

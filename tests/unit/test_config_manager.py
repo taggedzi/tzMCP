@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import yaml
 
 from tzMCP.gui_bits.config_manager import Config, ConfigManager
@@ -15,6 +16,7 @@ def test_config_defaults():
     assert cfg.enable_persistent_dedup is False
     assert cfg.auto_reload_config is True
     assert cfg.allowed_mime_groups == []
+    assert cfg.proxy_port == 8888
 
 
 def test_validate_drops_invalid_mime_groups(tmp_path):
@@ -73,6 +75,7 @@ def test_load_config_reads_yaml(tmp_path):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump({
+            "proxy_port": 9876,
             "save_dir": str(tmp_path / "cache"),
             "allowed_mime_groups": ["image"],
             "log_level": "WARNING",
@@ -83,6 +86,7 @@ def test_load_config_reads_yaml(tmp_path):
     assert cfg.log_level == "WARNING"
     assert isinstance(cfg.save_dir, Path)
     assert str(cfg.save_dir).endswith("cache")
+    assert cfg.proxy_port == 9876
 
 
 def test_load_config_missing_file_uses_defaults(tmp_path):
@@ -99,6 +103,7 @@ def test_save_config_roundtrip(tmp_path):
     cfg.save_dir = tmp_path / "cache"
     cfg.allowed_mime_groups = ["image", "video"]
     cfg.log_level = "ERROR"
+    cfg.proxy_port = 9876
     mgr.save_config(cfg)
 
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -107,3 +112,11 @@ def test_save_config_roundtrip(tmp_path):
     reloaded = ConfigManager(path).load_config()
     assert set(reloaded.allowed_mime_groups) == {"image", "video"}
     assert reloaded.log_level == "ERROR"
+    assert reloaded.proxy_port == 9876
+
+
+def test_validate_rejects_invalid_proxy_port(tmp_path):
+    mgr = _mgr(tmp_path)
+    cfg = Config(save_dir=tmp_path / "cache", proxy_port=70000)
+    with pytest.raises(ValueError, match="proxy_port"):
+        mgr._validate_config(cfg)
