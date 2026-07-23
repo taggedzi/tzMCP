@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import queue
+from pathlib import Path
 from tzMCP.gui_bits.config_manager import ConfigManager
 from tzMCP.gui_bits.proxy_control import ProxyController
 from tzMCP.gui_bits.proxy_tab import ProxyTab
@@ -105,3 +106,7 @@ class MainApp(tk.Tk):
 
 def main():
     MainApp().run()
+
+
+if __name__ == "__main__":
+    main()
