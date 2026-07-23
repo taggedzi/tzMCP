@@ -5,6 +5,7 @@ from pathlib import Path
 from threading import Thread
 import requests
 from tzMCP.save_media_utils.config_provider import get_config
+from tzMCP.paths import logs_dir
 
 # Preloaded global loggers
 log_proxy = logging.getLogger("tzMCP.proxy")
@@ -45,7 +46,7 @@ class GuiLogHandler(logging.Handler):
 def setup_logging():
     """
     Setup hierarchical logging for tzMCP components.
-    Log files are hardcoded to 'logs/tzMCP_proxy.log', etc.
+    Log files are stored in the user-specific tzMCP data directory.
     Enable/disable file logging via config: config.log_to_file
     """
     config = get_config()
@@ -53,7 +54,7 @@ def setup_logging():
     level_name = getattr(config, "log_level", "INFO").upper()
     level = logging.getLevelName(level_name)
 
-    log_dir = Path(__file__).parent.parent.parent.parent / "logs"
+    log_dir = logs_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logger_map = {

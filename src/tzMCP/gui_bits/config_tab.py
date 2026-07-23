@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 from tzMCP.gui_bits.config_manager import ConfigManager, Config, MIME_GROUPS
+from tzMCP.paths import logs_dir, profiles_dir
 from tzMCP.common_utils.cleanup_logs import clean_old_logs
 from tzMCP.common_utils.cleanup_profiles import clean_old_profiles
 from tzMCP.common_utils.log_config import setup_logging, log_gui
@@ -115,13 +116,13 @@ class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-in
 
     def _manual_clean_logs(self):
         """Clean the log directory"""
-        log_dir = Path(__file__).parent.parent.parent / "logs"
+        log_dir = logs_dir()
         deleted = clean_old_logs(log_dir)
         messagebox.showinfo("Cleanup Logs", f"Removed {len(deleted)} log file(s).")
 
     def _manual_clean_profiles(self):
         """Clean the profile directory"""
-        profile_dir = Path(__file__).parent.parent.parent / "profiles"
+        profile_dir = profiles_dir()
         deleted = clean_old_profiles(profile_dir)
         messagebox.showinfo("Cleanup Profiles", f"Removed {len(deleted)} expired profile(s).")
 

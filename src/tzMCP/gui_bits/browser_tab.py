@@ -3,8 +3,9 @@ from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 import yaml
 from tzMCP.gui_bits.browser_launcher import launch_browser, detect_browser_name
+from tzMCP.paths import config_dir
 
-CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "browser_paths.yaml"
+CONFIG_PATH = config_dir() / "browser_paths.yaml"
 
 class BrowserTab(ttk.Frame):
     def __init__(self, master, proxy_controller):

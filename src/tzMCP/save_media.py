@@ -20,6 +20,7 @@ from tzMCP.save_media_utils.save_media_utils import (
 )
 from tzMCP.common_utils.log_config import setup_logging, log_proxy
 from tzMCP.save_media_utils.hash_tracker import init_hash_db, shutdown_hash_db, is_duplicate
+from tzMCP.paths import config_dir, logs_dir
 
 class ConfigChangeHandler(FileSystemEventHandler):
     """Watchdog event handler class"""
@@ -37,9 +38,8 @@ class MediaSaver:
     """Media Server Addon for mitmproxy"""
     def __init__(self):
         # Setup Pathing
-        self.project_root = Path(__file__).parent.parent.parent
-        self.config_path = self.project_root / "config" / "media_proxy_config.yaml"
-        self.log_path = self.project_root / "logs"
+        self.config_path = config_dir() / "media_proxy_config.yaml"
+        self.log_path = logs_dir()
 
         # Setup Config Manager
         self.cfg_manager = ConfigManager(self.config_path)

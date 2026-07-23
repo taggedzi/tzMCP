@@ -3,11 +3,12 @@ from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 import yaml
 from tzMCP.save_media_utils.mime_categories import MIME_GROUPS
+from tzMCP.paths import data_dir, config_dir
 
 
 @dataclass
 class Config:
-    save_dir: Path = Path("E:/Home/Documents/Programming/tzMCP/cache")
+    save_dir: Path = field(default_factory=lambda: data_dir() / "cache")
     allowed_mime_groups: list[str] = field(default_factory=list)
     whitelist: List[str] = field(default_factory=list)
     blacklist: List[str] = field(default_factory=lambda: ["ads\\..*", ".*\\.doubleclick\\.net"])
@@ -32,8 +33,7 @@ class Config:
 class ConfigManager:
     def __init__(self, config_path: Optional[Path] = None):
         if config_path is None:
-            base = Path(__file__).parent.parent.parent.parent
-            config_path = base / "config" / "media_proxy_config.yaml"
+            config_path = config_dir() / "media_proxy_config.yaml"
         self.config_path = config_path
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         self._log_fn = None

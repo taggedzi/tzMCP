@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from pathlib import Path
 import queue
 from tzMCP.gui_bits.config_manager import ConfigManager
 from tzMCP.gui_bits.proxy_control import ProxyController
@@ -13,6 +12,7 @@ from tzMCP.gui_bits.browser_launcher import cleanup_browsers
 from tzMCP.common_utils.log_config import setup_logging, log_gui
 from tzMCP.common_utils.cleanup_profiles import clean_old_profiles
 from tzMCP.common_utils.cleanup_logs import clean_old_logs
+from tzMCP.paths import config_dir, logs_dir, profiles_dir
 setup_logging()
 
 class MainApp(tk.Tk):
@@ -22,17 +22,15 @@ class MainApp(tk.Tk):
         self.title("tzMCP Media Capture Proxy")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # Initialize controllers (always use project/config/media_proxy_config.yaml)
-        project_root       = Path(__file__).parent.parent.parent
-        config_file        = project_root / "config" / "media_proxy_config.yaml"
-        profile_root       = project_root / "profiles"
-        log_dir            = project_root / "logs"
+        config_file = config_dir() / "media_proxy_config.yaml"
+        profile_root = profiles_dir()
+        log_dir = logs_dir()
 
         # Clean out old profiles and logs. 
         clean_old_profiles(profile_root, max_age_days=3)
         clean_old_logs(log_dir, max_age_days=7)
 
-        log_gui.info(f"Project root: {project_root}")
+        log_gui.info(f"Application data directory: {config_file.parent.parent}")
         log_gui.debug(f"Config file: {config_file}")
         log_gui.debug(f"Config file exists: {config_file.exists()}")
         config_file.parent.mkdir(parents=True, exist_ok=True)

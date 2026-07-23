@@ -1,5 +1,3 @@
-chrome: "C:/Program Files/Google/Chrome/Application/chrome.exe"
-brave: "C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe"
-edge: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
-firefox: "C:/Program Files/Mozilla Firefox/firefox.exe"
-safari: "/Applications/Safari.app"
+# Browser paths are user-specific. Add them through the GUI or edit the
+# browser_paths.yaml created in tzMCP's application-data directory.
+{}

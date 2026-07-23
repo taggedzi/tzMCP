@@ -66,14 +66,21 @@ python -m tzMCP.gui
 
 ## ⚙️ Configuration
 
-Located at: `config/media_proxy_config.yaml`
+Configuration is stored in tzMCP's per-user application-data directory, not in
+the installation directory. By default this is `%LOCALAPPDATA%\\tzMCP` on
+Windows, `~/Library/Application Support/tzMCP` on macOS, and
+`~/.local/share/tzMCP` on Linux (or `$XDG_DATA_HOME/tzMCP`). Set
+`TZMCP_DATA_DIR` to use a different directory, such as a portable drive.
 
-You can modify it via the GUI or manually.
+`media_proxy_config.yaml` and `browser_paths.yaml` are created in its `config`
+subdirectory. You can modify them via the GUI or manually. Browser paths start
+empty because executable locations are specific to each machine.
 
 ### Example config snippet:
 
 ```yaml
-save_dir: E:/Home/Documents/Programming/tzMCP/cache
+# Optional. If omitted, captures are saved to the application's data directory.
+# save_dir: /path/to/tzMCP-captures
 allowed_mime_groups:
   - image
   - video
@@ -180,6 +187,10 @@ tzmcp   # launch GUI (entry point)
 ---
 
 ## 📁 Folder Layout
+
+This is the repository layout. Runtime configuration, captures, logs, and
+browser profiles are instead created under the per-user application-data
+directory described above.
 
 ```text
 ├── .github\
