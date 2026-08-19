@@ -70,3 +70,13 @@ whitelist_generated.yaml
 profiles/
 *.sqlite
 .claude/settings.json
+
+# Tools
+packer.exe
+
+# Packer build cache (large ISO downloads, lock files)
+packer_cache/
+*.iso
+
+# Manual VirtualBox debug screenshots
+VirtualBoxVM_*.png

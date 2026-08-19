@@ -2,21 +2,30 @@ import os
 import subprocess
 import socket
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 import threading
+from tzMCP.proxy_runtime import ProxyLaunchSpec, build_proxy_command, launch_environment
 
 
 class ProxyController:
     """Launch and manage a mitmdump process running the save_media.py addon."""
 
-    def __init__(self, proxy_executable_path: str, proxy_port: int = 8080, gui_queue=None):
+    def __init__(self, proxy_executable_path: str, proxy_port: int = 8080, gui_queue=None,
+                 config_path: str | Path | None = None, confdir: str | Path | None = None,
+                 log_dir: str | Path | None = None, startup_timeout: float = 10.0):
         print(f"Proxy controller initialized")
         print(f"proxy_executable_path: {proxy_executable_path}")
         self.proxy_executable_path = proxy_executable_path  # path to save_media.py
         self.proxy_port = proxy_port
         self.process: Optional[subprocess.Popen] = None
         self.gui_queue = gui_queue  # <-- ADD THIS LINE
+        self.config_path = Path(config_path).resolve() if config_path else None
+        self.confdir = Path(confdir).resolve() if confdir else None
+        self.log_dir = Path(log_dir).resolve() if log_dir else None
+        self.startup_timeout = startup_timeout
+        self.proxy_ready = False
 
     # ------------------------------------------------------------------
     # Helpers
@@ -24,6 +33,24 @@ class ProxyController:
     def _is_port_in_use(self) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             return sock.connect_ex(("127.0.0.1", self.proxy_port)) == 0
+
+    def _wait_for_readiness(self) -> None:
+        """Wait until mitmdump accepts loopback connections or fails."""
+        deadline = time.monotonic() + self.startup_timeout
+        while time.monotonic() < deadline:
+            if self.process is None:
+                raise RuntimeError("Proxy process disappeared during startup")
+            return_code = self.process.poll()
+            if return_code is not None:
+                raise RuntimeError(f"Proxy exited during startup with code {return_code}")
+            if self._is_port_in_use():
+                self.proxy_ready = True
+                return
+            time.sleep(0.05)
+        raise TimeoutError(
+            f"Proxy did not become ready on 127.0.0.1:{self.proxy_port} "
+            f"within {self.startup_timeout:.1f} seconds"
+        )
 
     def _mitmdump_exe(self) -> Path:
         exe = Path(sys.executable).parent / ("mitmdump.exe" if sys.platform == "win32" else "mitmdump")
@@ -38,25 +65,25 @@ class ProxyController:
         """Start mitmdump on the requested port with the given addon script."""
         if self._is_port_in_use():
             raise RuntimeError(f"Port {self.proxy_port} is already in use.")
+        self.proxy_ready = False
 
         script_path = Path(self.proxy_executable_path).resolve()
         print(f"Script path: {script_path}")
         if not script_path.exists():
             raise RuntimeError(f"Proxy script not found at {script_path}")
 
-        env = os.environ.copy()
-        env["PYTHONIOENCODING"] = "utf-8"
-
-        cmd = [
-            str(self._mitmdump_exe()), 
-            "-q",  # quiet mitmdump output
-            # "--set", "console_eventlog=false", # suppress INFO flood
-            "--set", "console_eventlog_verbosity=info",  # Control mitmdump log output level to term
-            "--listen-host", "127.0.0.1",                # Only allow local connection
-            "--listen-port", str(self.proxy_port),
-            "--set", "http2=true",                       # Force HTTP/2 to be more browser like.
-            "-s", str(script_path),
-        ]
+        if self.config_path is None:
+            raise RuntimeError("An explicit proxy config path is required")
+        spec = ProxyLaunchSpec(
+            self.config_path,
+            self.proxy_port,
+            confdir=self.confdir,
+            log_dir=self.log_dir,
+            auto_reload=not bool(os.environ.get("TZMCP_APPLIANCE") == "1"),
+        )
+        cmd = build_proxy_command(spec, script_path, self._mitmdump_exe())
+        cmd.extend(["--set", "http2=true"])
+        env = launch_environment(spec)
         print("[DEBUG] Launching proxy:", " ".join(cmd))
         self.process = subprocess.Popen(
             cmd,
@@ -69,6 +96,11 @@ class ProxyController:
             env=env, 
         )
         threading.Thread(target=self._drain_stdout, daemon=True).start()
+        try:
+            self._wait_for_readiness()
+        except Exception:
+            self.stop_proxy()
+            raise
 
     def _drain_stdout(self):
         if not self.process or not self.process.stdout:
@@ -88,6 +120,7 @@ class ProxyController:
                 self.process.kill()
                 self.process.wait()
         self.process = None
+        self.proxy_ready = False
 
     def _mirror_stdout(self):
         if self.process and self.process.stdout:

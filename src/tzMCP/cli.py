@@ -1,8 +1,11 @@
 import argparse
+import os
 import sys
 import yaml
 from pathlib import Path
 from tzMCP.gui_bits.config_manager import ConfigManager, Config
+from tzMCP.paths import runtime_dir, logs_dir, ca_dir, ensure_runtime_dirs
+from tzMCP.proxy_runtime import ProxyLaunchSpec, write_config_snapshot
 
 def parse_args():
     parser = argparse.ArgumentParser(description="tzMCP CLI Media Proxy")
@@ -72,19 +75,36 @@ def main():
     args = parse_args()
     config = build_config(args)
 
-    # Set it globally for utilities that call get_config()
-    from tzMCP.save_media_utils import config_provider
-    config_provider.set_config(config)
-
-    # Start mitmdump with this config
-    from tzMCP.save_media import MediaSaver
+    snapshot = write_config_snapshot(config, runtime_dir(), "cli-capture-config.yaml")
     from mitmproxy.tools.main import mitmdump
     # This will behave like mitmproxy's -s entry point:
-    mitmdump([
-        "--listen-host", "127.0.0.1",
-        "--listen-port", str(config.proxy_port),
-        "-s", str(Path(__file__).parent / "save_media.py"),
-    ])
+    from tzMCP.appliance import is_appliance_mode
+    if is_appliance_mode():
+        ensure_runtime_dirs()
+    spec = ProxyLaunchSpec(snapshot, config.proxy_port, log_dir=logs_dir(),
+                           confdir=ca_dir() if is_appliance_mode() else None,
+                           auto_reload=config.auto_reload_config and not is_appliance_mode())
+    from tzMCP.proxy_runtime import build_proxy_command, launch_environment
+    command = build_proxy_command(
+        spec,
+        Path(__file__).parent / "save_media.py",
+        Path(sys.executable).parent / ("mitmdump.exe" if sys.platform == "win32" else "mitmdump"),
+    )
+    # mitmdump imports the addon in this process, so carry the same explicit
+    # launch contract through its environment as ProxyController does for a
+    # subprocess.
+    previous = {key: os.environ.get(key) for key in ("TZMCP_CONFIG_PATH", "TZMCP_AUTO_RELOAD", "TZMCP_LOG_DIR", "TZMCP_MITM_CONF_DIR")}
+    os.environ.update(launch_environment(spec))
+    try:
+        # The Python API receives argv after the executable name; the GUI
+        # subprocess receives the complete command returned above.
+        mitmdump(command[1:])
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 if __name__ == "__main__":
     main()

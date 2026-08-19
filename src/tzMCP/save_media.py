@@ -21,6 +21,7 @@ from tzMCP.save_media_utils.save_media_utils import (
 from tzMCP.common_utils.log_config import setup_logging, log_proxy
 from tzMCP.save_media_utils.hash_tracker import init_hash_db, shutdown_hash_db, is_duplicate
 from tzMCP.paths import config_dir, logs_dir
+from tzMCP.appliance import is_appliance_mode
 
 class ConfigChangeHandler(FileSystemEventHandler):
     """Watchdog event handler class"""
@@ -36,9 +37,13 @@ class ConfigChangeHandler(FileSystemEventHandler):
 
 class MediaSaver:
     """Media Server Addon for mitmproxy"""
-    def __init__(self):
+    def __init__(self, config_path: str | Path | None = None):
         # Setup Pathing
-        self.config_path = config_dir() / "media_proxy_config.yaml"
+        explicit_path = config_path or os.environ.get("TZMCP_CONFIG_PATH")
+        self.config_path = Path(explicit_path).resolve() if explicit_path else config_dir() / "media_proxy_config.yaml"
+        self._explicit_config = explicit_path is not None
+        if explicit_path and not self.config_path.is_file():
+            raise RuntimeError(f"Explicit proxy config does not exist: {self.config_path}")
         self.log_path = logs_dir()
 
         # Setup Config Manager
@@ -48,7 +53,8 @@ class MediaSaver:
         self._observer = None
         self._load_config()
         setup_logging()
-        self._start_watcher()    # Setup Watchdog to monitor the config file for updates.
+        if self.config.auto_reload_config and not is_appliance_mode() and os.environ.get("TZMCP_AUTO_RELOAD") != "0":
+            self._start_watcher()
         init_hash_db(self.config.enable_persistent_dedup)  # Setup DB to managed Dedupe hashse
         log_proxy.info(f"MediaSaver addon initialized → {self.config.save_dir}")
 
@@ -60,6 +66,8 @@ class MediaSaver:
             log_proxy.info("MediaServer: 🔄 Reloaded config")
         except Exception as e:
             log_proxy.error(f"Failed to load config: {e}")
+            if self._explicit_config:
+                raise RuntimeError(f"Failed to load explicit proxy config: {self.config_path}") from e
             config_provider.set_config({})
 
     def _start_watcher(self):
