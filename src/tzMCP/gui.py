@@ -13,7 +13,9 @@ from tzMCP.gui_bits.browser_launcher import cleanup_browsers
 from tzMCP.common_utils.log_config import setup_logging, log_gui
 from tzMCP.common_utils.cleanup_profiles import clean_old_profiles
 from tzMCP.common_utils.cleanup_logs import clean_old_logs
-from tzMCP.paths import config_dir, logs_dir, profiles_dir
+from tzMCP.paths import config_dir, logs_dir, profiles_dir, ca_dir, ensure_runtime_dirs
+from tzMCP.appliance import is_appliance_mode
+from tzMCP.sessions.manager import SessionManager
 setup_logging()
 
 class MainApp(tk.Tk):
@@ -27,6 +29,9 @@ class MainApp(tk.Tk):
         profile_root = profiles_dir()
         log_dir = logs_dir()
 
+        if is_appliance_mode():
+            ensure_runtime_dirs()
+
         # Clean out old profiles and logs. 
         clean_old_profiles(profile_root, max_age_days=3)
         clean_old_logs(log_dir, max_age_days=7)
@@ -37,9 +42,19 @@ class MainApp(tk.Tk):
         config_file.parent.mkdir(parents=True, exist_ok=True)
         self.config_manager = ConfigManager()
         self.config        = self.config_manager.load_config()
+        self.session_manager = SessionManager()
+        try:
+            recovered = self.session_manager.recover_active()
+            if recovered is not None:
+                log_gui.warning("Recovered interrupted session %s", recovered.session_id)
+        except Exception:
+            log_gui.exception("Could not recover the previous capture session; manual attention is required.")
         self.proxy_controller = ProxyController(
             proxy_executable_path=str(Path(__file__).parent / "save_media.py"),
             proxy_port=self.config.proxy_port,
+            config_path=config_file,
+            confdir=ca_dir() if is_appliance_mode() else None,
+            log_dir=log_dir,
         )
         
         # Setup the GUI http logging server
@@ -58,6 +73,8 @@ class MainApp(tk.Tk):
                 new_config = self.config_manager.load_config()
                 selected_tab.reload_config(new_config)
                 self.config = new_config
+                if hasattr(self, "browser_tab"):
+                    self.browser_tab.config = new_config
                 if self.proxy_controller.process is None:
                     self.proxy_controller.proxy_port = new_config.proxy_port
             except Exception as e:
@@ -94,8 +111,16 @@ class MainApp(tk.Tk):
         status.pack(side='bottom', fill='x')
 
         self.proxy_tab = ProxyTab(notebook, self.proxy_controller, status, self.gui_queue, show_controls=False)
-        browser_tab = BrowserTab(notebook, self.proxy_controller, status, self.proxy_tab._append_json_log)
-        notebook.add(browser_tab, text="Capture Session")
+        self.browser_tab = BrowserTab(
+            notebook,
+            self.proxy_controller,
+            status,
+            self.proxy_tab._append_json_log,
+            session_manager=self.session_manager,
+            config=self.config,
+            persistent_config_path=config_file,
+        )
+        notebook.add(self.browser_tab, text="Capture Session")
 
         self.config_manager.set_logger(log_gui)
         config_tab = ConfigTab(notebook, self.config_manager, self.config)
@@ -105,8 +130,8 @@ class MainApp(tk.Tk):
     def _on_close(self):
         # stop the proxy if it’s still running and log it
         try:
-            if self.proxy_controller.process and self.proxy_controller.process.poll() is None:
-                self.proxy_controller.stop_proxy()
+            self.browser_tab.shutdown()
+            if self.proxy_controller.process is None:
                 self.proxy_tab.log.config(state='normal')
                 self.proxy_tab.log.insert('end', 'Proxy stopped on exit.\n')
                 self.proxy_tab.log.config(state='disabled')

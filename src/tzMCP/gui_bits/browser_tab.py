@@ -1,20 +1,36 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import os
+import shutil
 from pathlib import Path
 import yaml
 from tzMCP.gui_bits.browser_launcher import launch_browser, detect_browser_name
 from tzMCP.paths import config_dir
 from tzMCP.common_utils.log_config import log_gui
+from tzMCP.sessions.manager import SessionManager
+from tzMCP.sessions.models import SessionRecord, SessionState
+from tzMCP.appliance import is_appliance_mode
+from tzMCP.browser.firefox_session import FirefoxSession
+from tzMCP.paths import ca_dir
+from tzMCP.sessions.export_service import ExportService
+from tzMCP.sessions.versions import collect_versions
 
 CONFIG_PATH = config_dir() / "browser_paths.yaml"
 
 class BrowserTab(ttk.Frame):
     """Guided, safety-first capture session setup and browser launcher."""
-    def __init__(self, master, proxy_controller, status_bar=None, activity_logger=None):
+    def __init__(self, master, proxy_controller, status_bar=None, activity_logger=None,
+                 session_manager: SessionManager | None = None, config=None, persistent_config_path=None):
         super().__init__(master)
         self.proxy_controller = proxy_controller
         self.status_bar = status_bar
         self.activity_logger = activity_logger
+        self.session_manager = session_manager
+        self.config = config
+        self.persistent_config_path = Path(persistent_config_path) if persistent_config_path else None
+        self.session: SessionRecord | None = None
+        self.firefox_session: FirefoxSession | None = None
+        self.export_service = ExportService(self.session_manager.storage) if self.session_manager else None
 
         self.browser_paths = self._load_browser_paths()
         self.display_names = {k: k for k in self.browser_paths}
@@ -70,6 +86,12 @@ class BrowserTab(ttk.Frame):
         remove_btn.grid(row=0, column=3, padx=5)
 
         mgmt_frame.columnconfigure(1, weight=1)
+        if is_appliance_mode():
+            mgmt_frame.grid_remove()
+            launch_frame.configure(text="2. Launch managed Firefox")
+            # The label is updated after construction below; portable browser
+            # controls remain available in native/developer mode.
+            self._appliance_browser_frame = mgmt_frame
 
         # Launch options
         launch_frame = ttk.LabelFrame(self, text="3. Launch browser", padding=12)
@@ -90,6 +112,8 @@ class BrowserTab(ttk.Frame):
 
         self.launch_btn = ttk.Button(launch_frame, text="Launch safe browser", command=self._launch_browser, state="disabled", style="Accent.TButton")
         self.launch_btn.grid(row=3, column=0, columnspan=3, pady=(8, 2))
+        self.export_btn = ttk.Button(launch_frame, text="Export Session", command=self._export_session, state="disabled")
+        self.export_btn.grid(row=4, column=0, columnspan=3, pady=(4, 2))
 
         launch_frame.columnconfigure(1, weight=1)
 
@@ -101,8 +125,20 @@ class BrowserTab(ttk.Frame):
             self.activity_logger({"color": color, "lines": [line]})
 
     def _start_proxy(self):
+        created_session = None
         try:
+            if self.session_manager is not None:
+                if self.config is None:
+                    raise RuntimeError("Cannot start a session without validated configuration")
+                created_session = self.session_manager.create_session(self.config)
+                self.session = created_session
+                self.proxy_controller.config_path = (
+                    self.session_manager.storage.session_dir(created_session.session_id)
+                    / "metadata" / "capture-config.yaml"
+                )
             self.proxy_controller.start_proxy()
+            if self.session_manager is not None and self.session is not None:
+                self.session = self.session_manager.transition(self.session.session_id, SessionState.RUNNING)
             self.start_btn.config(state="disabled")
             self.stop_btn.config(state="normal")
             self.proxy_state.config(text=f"Running on 127.0.0.1:{self.proxy_controller.proxy_port}")
@@ -111,6 +147,12 @@ class BrowserTab(ttk.Frame):
             self._append_activity("Proxy started successfully.")
             self._update_launch_state()
         except Exception as exc:  # pylint: disable=broad-exception-caught
+            if created_session is not None and self.session_manager is not None:
+                try:
+                    self.session = self.session_manager.transition(created_session.session_id, SessionState.INTERRUPTED)
+                except Exception:  # preserve the original startup error
+                    log_gui.exception("Could not mark the failed startup session interrupted.")
+                self._restore_persistent_proxy_config()
             log_gui.exception("Could not start the capture proxy.")
             self.proxy_state.config(text=f"Could not start proxy: {exc}")
             if self.status_bar:
@@ -119,7 +161,17 @@ class BrowserTab(ttk.Frame):
 
     def _stop_proxy(self):
         try:
+            firefox_error = None
+            try:
+                self._stop_managed_firefox()
+            except Exception as exc:  # preserve profile/evidence for recovery
+                firefox_error = exc
+                log_gui.exception("Could not safely stop managed Firefox.")
             self.proxy_controller.stop_proxy()
+            if self.session_manager is not None and self.session is not None:
+                target = SessionState.INTERRUPTED if firefox_error else SessionState.ENDED
+                self.session = self.session_manager.transition(self.session.session_id, target)
+                self._restore_persistent_proxy_config()
             self.start_btn.config(state="normal")
             self.stop_btn.config(state="disabled")
             self.proxy_state.config(text="Stopped — start this before launching a browser.")
@@ -131,9 +183,31 @@ class BrowserTab(ttk.Frame):
             log_gui.exception("Could not stop the capture proxy.")
             self._append_activity(f"Failed to stop proxy: {exc}", "red")
 
+    def _restore_persistent_proxy_config(self):
+        if self.persistent_config_path is not None:
+            self.proxy_controller.config_path = self.persistent_config_path.resolve()
+
+    def shutdown(self):
+        """Stop the proxy and preserve an active session as interrupted."""
+        try:
+            self._stop_managed_firefox()
+        except Exception:
+            log_gui.exception("Could not safely stop managed Firefox during shutdown.")
+        if self.proxy_controller.process and self.proxy_controller.process.poll() is None:
+            self.proxy_controller.stop_proxy()
+        if self.session_manager is not None and self.session is not None:
+            record = self.session_manager.get(self.session.session_id)
+            if record.state in (SessionState.NEW, SessionState.RUNNING):
+                self.session = self.session_manager.transition(record.session_id, SessionState.INTERRUPTED)
+            self._restore_persistent_proxy_config()
+
     def _update_launch_state(self):
         proxy_running = self.proxy_controller.process is not None and self.proxy_controller.process.poll() is None
-        self.launch_btn.config(state="normal" if self.safe_browser_acknowledged.get() and proxy_running else "disabled")
+        allowed = proxy_running and (is_appliance_mode() or self.safe_browser_acknowledged.get())
+        self.launch_btn.config(state="normal" if allowed else "disabled")
+        if hasattr(self, "export_btn"):
+            exportable = self.session is not None and self.session.state in (SessionState.ENDED, SessionState.INTERRUPTED)
+            self.export_btn.config(state="normal" if exportable and not proxy_running else "disabled")
 
     def _load_browser_paths(self):
         if CONFIG_PATH.exists():
@@ -225,6 +299,9 @@ class BrowserTab(ttk.Frame):
                 "Start the proxy and confirm that you are using a dedicated portable browser before launching.",
             )
             return
+        if is_appliance_mode():
+            self._launch_managed_firefox()
+            return
         selected_label = self.selected_browser.get()
         internal_name = next((k for k, v in self.display_names.items() if v == selected_label), None)
         if not internal_name:
@@ -250,3 +327,52 @@ class BrowserTab(ttk.Frame):
                 "is allowed to start, then retry."
             )
             messagebox.showerror("Launch Failed", str(e))
+
+    def _launch_managed_firefox(self):
+        if self.session_manager is None or self.session is None:
+            messagebox.showerror("Launch Failed", "Start a capture session before launching Firefox.")
+            return
+        try:
+            firefox = os.environ.get("TZMCP_FIREFOX_PATH") or shutil.which("firefox")
+            if not firefox:
+                raise RuntimeError("Appliance-managed Firefox executable was not found")
+            session_dir = self.session_manager.storage.session_dir(self.session.session_id)
+            self.firefox_session = FirefoxSession(
+                Path(firefox),
+                session_dir / "browser",
+                ca_dir() / "mitmproxy-ca-cert.pem",
+                self.proxy_controller.proxy_port,
+            )
+            identity = self.firefox_session.start(self.launch_url.get())
+            self.session = self.session_manager.record_process(self.session.session_id, "firefox", identity)
+            self._append_activity("Launched managed Firefox with a fresh session profile.")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            log_gui.exception("Could not launch managed Firefox.")
+            messagebox.showerror("Launch Failed", str(exc))
+
+    def _stop_managed_firefox(self):
+        if self.firefox_session is None:
+            return
+        self.firefox_session.stop()
+        self.firefox_session.cleanup()
+        self.firefox_session = None
+
+    def _export_session(self):
+        if not is_appliance_mode() or self.export_service is None or self.session is None:
+            messagebox.showerror("Export unavailable", "Session export is available only in appliance mode.")
+            return
+        if self.proxy_controller.process and self.proxy_controller.process.poll() is None:
+            messagebox.showerror("Export unavailable", "End the running session before exporting.")
+            return
+        try:
+            firefox_path = self.firefox_session.executable if self.firefox_session else None
+            result = self.export_service.create_local_archive(self.session, collect_versions(firefox_path))
+            self.export_service.publish(result)
+            self.session = self.session_manager.complete_export(
+                self.session.session_id, result.archive_path.name, result.size, result.sha256
+            )
+            self._append_activity(f"Exported session {self.session.session_id}.")
+            self._update_launch_state()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            log_gui.exception("Could not export session; the local archive remains available for retry.")
+            messagebox.showerror("Export failed", str(exc))
