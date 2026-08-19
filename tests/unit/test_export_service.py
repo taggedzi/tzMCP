@@ -1,0 +1,34 @@
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from tzMCP.sessions.export_service import ExportService, ExportServiceError
+
+
+def test_publish_passes_only_controlled_archive_basename(monkeypatch, tmp_path):
+    root = tmp_path / "sessions"
+    service = ExportService(SimpleNamespace(root=root), helper="/helper")
+    export_root = root.parent / "export-ready"
+    export_root.mkdir()
+    archive = export_root / "20260723T061800Z-aabbccdd.zip"
+    archive.write_bytes(b"zip")
+    result = SimpleNamespace(archive_path=archive, size=3, sha256="hash")
+    calls = []
+    monkeypatch.setattr(
+        "tzMCP.sessions.export_service.subprocess.run",
+        lambda command, **kwargs: (calls.append((command, kwargs)) or SimpleNamespace(returncode=0, stdout=json.dumps({"ok": True}), stderr="")),
+    )
+    assert service.publish(result)["ok"] is True
+    assert calls[0][0] == ["sudo", "/helper", archive.name]
+
+
+def test_publish_rejects_unsafe_archive_name(tmp_path):
+    root = tmp_path / "sessions"
+    service = ExportService(SimpleNamespace(root=root), helper="/helper")
+    export_root = root.parent / "export-ready"
+    export_root.mkdir()
+    archive = export_root / "arbitrary.zip"
+    archive.write_bytes(b"zip")
+    with pytest.raises(ExportServiceError, match="controlled"):
+        service.publish(SimpleNamespace(archive_path=archive, size=3, sha256="hash"))
