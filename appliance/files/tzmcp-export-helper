@@ -1,0 +1,48 @@
+#!/bin/sh
+set -eu
+
+EXPORT_ROOT=/var/lib/tzmcp/export-ready
+MOUNT_POINT=/run/tzmcp-export
+SHARE_NAME=tzmcp-export
+
+fail() { echo "{\"ok\":false,\"error\":\"$1\"}"; exit 1; }
+
+[ "$(id -u)" -eq 0 ] || fail "root_required"
+[ "$#" -eq 1 ] || fail "one_archive_basename_required"
+archive_name=$1
+case "$archive_name" in
+    ""|.*|*/*|*\\*|*..*|*[!A-Za-z0-9._-]*) fail "invalid_archive_name" ;;
+esac
+
+source="$EXPORT_ROOT/$archive_name"
+[ -f "$source" ] || fail "archive_not_found"
+[ ! -L "$source" ] || fail "archive_symlink"
+source_real=$(realpath -e -- "$source") || fail "archive_path_invalid"
+root_real=$(realpath -e -- "$EXPORT_ROOT") || fail "export_root_invalid"
+case "$source_real" in
+    "$root_real"/*) ;;
+    *) fail "archive_outside_export_root";;
+esac
+
+[ ! -L "$MOUNT_POINT" ] || fail "mount_point_symlink"
+install -d -m 700 "$MOUNT_POINT"
+mount -t vboxsf -o nosuid,nodev,noexec "$SHARE_NAME" "$MOUNT_POINT"
+mounted=1
+cleanup() {
+    if [ "${mounted:-0}" -eq 1 ]; then
+        umount "$MOUNT_POINT" || true
+    fi
+}
+trap cleanup EXIT HUP INT TERM
+
+destination="$MOUNT_POINT/$archive_name"
+[ ! -e "$destination" ] || fail "destination_exists"
+[ ! -L "$destination" ] || fail "destination_symlink"
+partial="$destination.partial"
+cp -- "$source_real" "$partial"
+sync -f "$partial" 2>/dev/null || sync
+mv -- "$partial" "$destination"
+sync -f "$MOUNT_POINT" 2>/dev/null || sync
+mounted=0
+umount "$MOUNT_POINT"
+printf '{"ok":true,"archive":"%s"}\n' "$archive_name"

@@ -1,0 +1,47 @@
+name: Appliance source validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate appliance sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build a validation wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist
+      - name: Run Python tests
+        run: python -m pip install ".[dev]" && python -m pytest -q
+      - name: Check shell sources
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+          shellcheck appliance/provisioning/*.sh
+      - name: Install Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: "1.14.0"
+      - name: Validate Packer configuration
+        working-directory: appliance/packer
+        env:
+          PACKER_GITHUB_API_TOKEN: ${{ github.token }}
+        run: |
+          packer fmt -check .
+          packer init .
+          packer validate \
+            -var 'build_password=validation-only' \
+            -var 'build_password_hash=validation-only' \
+            -var "tzmcp_wheel=${{ github.workspace }}/dist/$(basename $(find ${{ github.workspace }}/dist -name '*.whl' | head -n 1))" \
+            .
