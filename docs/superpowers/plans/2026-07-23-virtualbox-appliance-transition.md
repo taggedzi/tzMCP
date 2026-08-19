@@ -1,7 +1,7 @@
 # tzMCP VirtualBox Appliance Transition Plan
 
 **Date:** 2026-07-23  
-**Status:** Direction approved; implementation not started  
+**Status:** Phase 0 and Phase 1 implemented; later phases pending
 **Primary platform:** 64-bit Windows host running VirtualBox 7.1+  
 **Guest:** Ubuntu 24.04 LTS, x86-64, lightweight desktop, Firefox  
 **Application mode:** `TZMCP_APPLIANCE=1`
@@ -491,71 +491,176 @@ Do not commit generated OVA, ISO, wheel, checksum output, or build secrets.
 
 ### Phase 0 — resolve design/build prerequisites
 
-- [ ] Confirm the appliance versioning scheme independently from Python package
+Decisions confirmed for the initial implementation: appliance versions are
+carried independently in `TZMCP_APPLIANCE_VERSION` (defaulting to
+`development`), while the Python package version remains separate; pinned
+runtime dependencies are declared in both `requirements.txt` and wheel
+metadata; the target desktop is Xfce with LightDM; Firefox is image-managed;
+and mitmproxy receives `--set confdir=<TZMCP_DATA_DIR>/ca/mitmproxy`. The
+remaining schema and privileged-helper decisions are intentionally deferred to
+the session/export phases.
+
+- [x] Confirm the appliance versioning scheme independently from Python package
       versioning.
-- [ ] Decide how runtime Python dependencies become wheel metadata or otherwise
+- [x] Decide how runtime Python dependencies become wheel metadata or otherwise
       install reproducibly from pinned artifacts.
-- [ ] Select the lightweight desktop package set (recommended starting point:
+- [x] Select the lightweight desktop package set (recommended starting point:
       Xfce + LightDM) and document why.
-- [ ] Confirm Ubuntu's Firefox packaging and executable/profile behavior in the
+- [x] Confirm Ubuntu's Firefox packaging and executable/profile behavior in the
       target image.
-- [ ] Confirm the exact mitmproxy `confdir` invocation for the pinned version.
+- [x] Confirm the exact mitmproxy `confdir` invocation for the pinned version.
 - [ ] Define JSON schemas and schema-version fields for internal state and
       exported `session.json`.
 - [ ] Define the root-owned export helper interface and privilege rule before
       implementing GUI export.
-- [ ] Record final decisions in this document or an ADR.
+- [x] Record final decisions in this document or an ADR.
 
 Exit gate: no unresolved decision changes the session data model, trust
 boundary, or build toolchain.
 
 ### Phase 1 — appliance mode, paths, and authoritative proxy configuration
 
-- [ ] Add strict `TZMCP_APPLIANCE` parsing (`1` enables; absent/other documented
+- [x] Add strict `TZMCP_APPLIANCE` parsing (`1` enables; absent/other documented
       values preserve native mode).
-- [ ] Extend path helpers for sessions, CA, runtime, and export-ready roots.
-- [ ] Add safe directory creation and permission checks.
-- [ ] Refactor `MediaSaver` so an explicit config path is authoritative.
-- [ ] Refactor GUI and CLI proxy launches to use the same launch specification.
-- [ ] Pass loopback host, validated port, session config, log location, and CA
+- [x] Extend path helpers for sessions, CA, runtime, and export-ready roots.
+- [x] Add safe directory creation and permission checks.
+- [x] Refactor `MediaSaver` so an explicit config path is authoritative.
+- [x] Refactor GUI and CLI proxy launches to use the same launch specification.
+- [x] Pass loopback host, validated port, session config, log location, and CA
       `confdir` explicitly.
-- [ ] Preserve native auto-reload behavior only where intended.
-- [ ] Add proxy readiness/failure detection rather than treating `Popen`
+- [x] Preserve native auto-reload behavior only where intended.
+- [x] Add proxy readiness/failure detection rather than treating `Popen`
       success as proxy readiness.
 
 Tests:
 
-- [ ] appliance environment parsing;
-- [ ] path isolation under `TZMCP_DATA_DIR`;
+- [x] appliance environment parsing;
+- [x] path isolation under `TZMCP_DATA_DIR`;
 - [ ] CLI overrides observed by the actual addon configuration;
 - [ ] GUI-selected port and filter configuration observed by the addon;
-- [ ] invalid/missing explicit config fails closed;
-- [ ] proxy command binds loopback and includes the explicit CA directory.
+- [x] invalid/missing explicit config fails closed;
+- [x] proxy command binds loopback and includes the explicit CA directory.
 
 Exit gate: one canonical test proves that the effective GUI/CLI configuration
 used to launch the proxy is the configuration loaded by `MediaSaver`.
 
 ### Phase 2 — session model, storage, and recovery
 
-- [ ] Implement `SessionState` and validated records.
-- [ ] Implement unique ID generation and safe session paths.
-- [ ] Implement atomic state writes.
-- [ ] Implement the transition table and typed errors.
-- [ ] Snapshot effective configuration into the session.
-- [ ] Add one-active-session locking.
-- [ ] Store verified process identity records.
-- [ ] Implement idempotent interrupted-session recovery.
-- [ ] Count captures and bytes without trusting filenames.
+The initial service-layer implementation is present in `src/tzMCP/sessions/`.
+It currently covers strict IDs, isolated layout creation, atomic state files,
+the transition table, one-active-session locking, capture counting, recovery,
+and PID/executable/owner/start-time verification. GUI/proxy orchestration and
+failure-injection coverage remain to be completed in this phase.
+
+The native GUI now creates a session before starting its proxy, points the
+proxy at the session's immutable `metadata/capture-config.yaml`, transitions
+successful starts to `RUNNING`, finalizes normal stops as `ENDED`, and marks
+GUI-close or startup failures as `INTERRUPTED`. Browser process ownership and
+the appliance-specific Firefox workflow remain later work.
+
+The managed browser service is now present in `src/tzMCP/browser/`. It creates
+fresh per-session Firefox profiles, writes loopback-only preferences, imports
+and verifies the public CA with `certutil`, launches with `-no-remote`, and
+refuses to terminate a process whose executable, owner, or start time no longer
+matches its recorded identity. Appliance GUI wiring and first-boot CA
+generation remain open.
+
+Appliance-mode GUI sessions now use this service and hide the portable-browser
+selection controls. Runtime roots are created with owner-only permissions at
+appliance GUI/CLI startup. First-boot provisioning still needs to create the
+CA before the application starts, and the release image must supply the
+managed Firefox executable and `certutil`.
+
+Initial provisioning assets are now present under `appliance/`: a first-boot
+systemd service/script creates private runtime roots and generates the
+VM-specific CA outside the image build, and a desktop launcher starts the GUI
+with `TZMCP_APPLIANCE=1`. Packer image construction, account provisioning, and
+manual VM verification remain open.
+
+The initial Packer source and unattended Ubuntu seed are now present under
+`appliance/packer/`, with pinned Ubuntu 24.04.4 live-server ISO metadata, 2 CPU /
+4096 MB / 60 GB defaults, NAT-only networking, disabled clipboard/drag-and-drop
+/USB, and provisioning hooks for the desktop, application wheel, security
+scrub, and first-boot service. Packer validation and an actual clean build have
+not yet been run on a maintainer machine.
+
+The Ubuntu 24.04.4 appliance provisioning path installs Firefox explicitly as
+the Ubuntu Snap after the base APT transaction, with seed readiness and retry
+handling. This avoids coupling the complete desktop package transaction to
+Snapd startup/watchdog timing; the exact Firefox snap revision remains part of
+the recorded image manifest.
+
+Initial Phase 7 release tooling is now present: `scripts/windows/Setup-tzMCP.ps1`
+verifies VirtualBox 7.1+, validates the OVA hash before import, applies the
+NAT-only and disabled-integration settings, adds the non-automounted export
+share, and starts only after configuration. The release scripts also provide
+Packer validation/build orchestration and deterministic SHA-256 manifest
+generation. Live Windows/VirtualBox execution remains manual acceptance work.
+
+The maintainer build currently produces an OVF bundle; `scripts/release/package-ova.ps1`
+packages its OVF descriptor and virtual disk into the distributable OVA, after
+which the checksum generator can create the published sidecar/manifest.
+
+The README now identifies the appliance as the target end-user workflow while
+clearly stating that no production OVA is currently published.
+`docs/appliance.md` documents installation, first capture, export verification,
+recovery, persistence, and the host/guest security boundary; native setup
+remains marked developer-only.
+
+Initial Phase 9 source validation is now present in
+`.github/workflows/appliance-validation.yml`: it runs the Python suite,
+ShellCheck, Packer formatting, plugin initialization, and Packer validation
+without producing an OVA. Release checksum generation now has a matching
+manifest validator. CI and maintainer-machine execution still need to record
+their real results before the transition can be called complete.
+
+The initial secure export implementation is now present in
+`src/tzMCP/sessions/export.py`: it allow-lists capture/log/metadata payloads,
+rejects symlinks and special/multiply-linked files, sanitizes sensitive logs,
+creates deterministic ZIP64 archives and manifests, and uses partial-file plus
+atomic-rename semantics. The root-owned helper and sudoers installation are
+present under `appliance/`; GUI export integration and live mount/disk-full
+tests remain open.
+
+Export is now exposed through the appliance capture tab only after the proxy
+and Firefox stop. The GUI creates/reuses the local archive, invokes the helper
+with only its validated basename, records `EXPORTED` only after structured
+success, and leaves a failed local archive available for retry. Live Tk/helper
+integration and mount/disk-full acceptance remain manual work.
+
+Export metadata now records collected tzMCP, appliance, Python, mitmproxy,
+Ubuntu, and Firefox versions, plus effective capture settings with the session
+path removed from `session.json`.
+
+- [x] Implement `SessionState` and validated records. (`sessions/models.py`)
+- [x] Implement unique ID generation and safe session paths. (`sessions/storage.py`)
+- [x] Implement atomic state writes. (`storage.py` uses `tempfile.mkstemp` +
+      `fsync` + `os.replace`)
+- [x] Implement the transition table and typed errors. (`sessions/manager.py`)
+- [x] Snapshot effective configuration into the session. (GUI writes the
+      session's immutable `metadata/capture-config.yaml` before proxy start)
+- [x] Add one-active-session locking.
+- [x] Store verified process identity records. (`sessions/processes.py`)
+- [x] Implement idempotent interrupted-session recovery. (`recover_active`,
+      wired into GUI startup)
+- [x] Count captures and bytes without trusting filenames.
+      (`manager._count_capture_files` stats the actual capture dir)
 
 Tests:
 
-- [ ] every allowed and rejected state transition;
-- [ ] collision-resistant IDs and isolated directories;
-- [ ] corrupt/partial state handling;
-- [ ] interrupted-session recovery;
-- [ ] PID reuse and unrelated-process protection;
-- [ ] disk-full/atomic-write failures;
-- [ ] persistent configuration remains unchanged by session overrides.
+- [x] every allowed and rejected state transition
+      (`test_sessions.py::test_invalid_transitions_are_rejected_without_state_change`);
+- [x] collision-resistant IDs and isolated directories
+      (`test_sessions.py::test_session_ids_are_strict`);
+- [ ] corrupt/partial state handling — not covered;
+- [x] interrupted-session recovery
+      (`test_sessions.py::test_recovery_is_idempotent_and_preserves_capture`);
+- [x] PID reuse and unrelated-process protection
+      (`test_session_processes.py::test_process_identity_requires_executable_owner_and_start_time`);
+- [ ] disk-full/atomic-write failures — atomic-write mechanism exists but has
+      no failure-injection test yet;
+- [ ] persistent configuration remains unchanged by session overrides — not
+      covered.
 
 Exit gate: simulated crashes at each lifecycle point preserve capture files and
 produce a recoverable `INTERRUPTED` session.
@@ -805,11 +910,68 @@ The transition is complete only when:
 
 ## Handoff status
 
-As of 2026-07-23:
+As of 2026-08-19 (paused for a Claude usage-limit reset; resume ~2026-08-22):
 
-- Product direction is agreed.
-- Retaining the Tk GUI as an appliance control panel is agreed.
-- No implementation work for this transition has started.
-- No repository files were changed before this plan document.
-- The next action is Phase 0: resolve the build/runtime trust-boundary decisions,
-  then implement Phase 1 with tests.
+- Product direction is agreed. Retaining the Tk GUI as an appliance control
+  panel is agreed.
+- Work is on branch `feature/virtualbox-appliance-transition` (created from
+  `main` at commit `271c43f`), **not** on `main`. All Python implementation
+  that used to sit uncommitted in the working tree is now committed there in
+  6 reviewable commits: appliance-mode plumbing, session service layer,
+  managed-browser/Firefox isolation, GUI wiring, appliance/Packer
+  provisioning + CI, and release tooling. Local unit suite: **120 passed, 1
+  skipped** (skip is symlink support, expected on Windows).
+- Contrary to what this doc said as of 2026-07-23, GUI/proxy/session/export
+  integration is **not** open — it is implemented and committed (see Phase 2
+  checklist above and Phase 4/5 code references). That earlier status line
+  was stale relative to the working tree; this pass corrected the Phase 2
+  checkboxes against the actual code and tests. Phases 3/4/5 checklists below
+  have not yet received the same line-by-line reconciliation pass — treat
+  their unchecked boxes with the same suspicion until re-verified.
+- `.gitignore` now excludes `packer_cache/`, `*.iso`, and
+  `VirtualBoxVM_*.png`. Two multi-GB Ubuntu ISOs and a stray VM debug
+  screenshot were sitting untracked in the repo root; they were never staged
+  or committed, just newly ignored. They still exist on disk if needed for a
+  local Packer build.
+- Checked for secrets before committing: `appliance/packer/variables.pkr.hcl`
+  and `scripts/release/build-appliance.ps1` require `build_password` /
+  `build_password_hash` as caller-supplied arguments with no default and a
+  placeholder guard — nothing sensitive is checked in.
+- A prior manual build attempt (recorded in
+  `2026-07-23-virtualbox-appliance-transition-handoff.md`) produced
+  `dist/tzMCP-appliance.ova`, which VirtualBox could import but which booted
+  to a terminal instead of Xfce (LightDM failed; suspected 4MB VRAM). That
+  fix (VRAM → 128MB, explicit LightDM enable) is in the committed provisioning
+  scripts but was never baked into a rebuilt OVA. **That VM
+  (`tzMCP-appliance`) no longer exists in `VBoxManage list vms`** — the old
+  handoff note's "power off and modify the running VM" steps are dead; do not
+  follow them.
+
+### Next actions on resume, in order
+
+1. Re-import `dist/tzMCP-appliance.ova` (the old build, still on disk),
+   `VBoxManage modifyvm <name> --vram 128`, then `VBoxManage startvm --type
+   headless` and `VBoxManage controlvm <name> screenshotpng out.png` to check
+   whether it now reaches the Xfce desktop without needing a full rebuild —
+   this splits the VRAM-vs-LightDM-config hypothesis in minutes.
+   - If it boots to desktop: VRAM was the whole problem; a rebuild is just to
+     bake the fix into the distributable OVA.
+   - If it still drops to a terminal: capture `journalctl -u lightdm -b`
+     (`VBoxManage guestcontrol` may not work since `tzmcp` uses passwordless
+     auto-login with no known guestcontrol credential — may need a
+     first-boot log dump to the shared folder instead).
+2. Only after a booting appliance is confirmed: rebuild the OVA via
+   `scripts/release/build-appliance.ps1`, re-import via
+   `scripts/windows/Setup-tzMCP.ps1`, and start recording results against the
+   "Manual appliance acceptance matrix" below (currently entirely unchecked).
+3. Reconcile Phase 3/4/5/6 checkboxes against code the same way Phase 2 was
+   just reconciled above — in particular, `appliance/files/tzmcp-export-helper`
+   and `install-export-helper.sh` already exist, and `sessions/export.py`
+   already does log sanitization and `sessions/versions.py` already does
+   schema/version recording, so several "Open decisions" items below are
+   likely already answered by existing code, not actually open — verify and
+   record rather than re-deciding them.
+4. The one open decision that's a genuine product/security call rather than
+   something already implemented: whether the appliance permits automatic
+   Ubuntu security updates by default. Surface that one to the user; don't
+   guess it.

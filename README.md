@@ -2,6 +2,21 @@
 
 **tzMCP** is a GUI and CLI tool that uses [mitmproxy](https://mitmproxy.org/) to intercept and selectively save media from web traffic — including images, videos, HTML, CSS, JavaScript, and other downloadable files.
 
+## Supported end-user workflow: VirtualBox appliance
+
+The target supported end-user product is the versioned VirtualBox appliance.
+The appliance implementation and production OVA are still in development;
+until a release is published, use the native workflow only for development.
+When released, import
+the published OVA with `scripts/windows/Setup-tzMCP.ps1`, start the VM, and use
+the tzMCP launcher inside its desktop. The appliance manages its own Firefox
+profile and proxy; do not configure a host browser, Windows proxy, or host
+certificate store.
+
+For installation, first capture, export, recovery, and security-boundary
+details, see [the appliance guide](docs/appliance.md). The native GUI and CLI
+instructions below are developer facilities for working on tzMCP itself.
+
 It is secure-by-default, lightweight, and designed to be cross-platform and user-friendly.
 
 ---
