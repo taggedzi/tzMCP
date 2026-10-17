@@ -1,48 +1,20 @@
-# 🔐 Setting up the mitmproxy Certificate Authority (CA)
+# Certificates and HTTPS capture
 
-When you first use `tzMCP`, it works by acting like a “middleman” between your browser and the websites you visit. To do that safely, it uses something called a **Certificate Authority (CA)** — like a special ID card that lets it create secure (HTTPS) connections.
+A certificate authority (CA) can issue certificates a browser trusts. tzMCP uses mitmproxy's CA so the capture browser can accept HTTPS connections through the proxy. This lets the proxy inspect plaintext traffic, including any credentials entered during the session.
 
-But here's the catch:
+## Appliance users
 
-## ⚠️ Most browsers don’t trust mitmproxy’s CA by default
-That means you’ll see errors like:
-- “Your connection is not private”
-- “This site is not secure”
-- “SEC_ERROR_UNKNOWN_ISSUER”
+The appliance prepares this automatically:
 
-To fix this, you need to **install mitmproxy’s CA certificate** into your browser or operating system. This tells your computer: “Hey, I trust this tool. Let it show me HTTPS websites without freaking out.”
+1. Start the proxy in **Capture Session**.
+2. Select **Launch Firefox** to use the managed profile.
 
----
+The CA is specific to the VM. Only its public certificate is imported into the managed Firefox profile. The private key remains in the guest. The normal workflow does not add trust to the Windows host or the guest system certificate store.
 
-## 🧭 What You Need to Do
+If managed Firefox reports certificate errors, stop and inspect **Activity**. Do not fix an appliance problem by installing certificates on your host. See the [appliance guide](appliance.md).
 
-1. Launch the proxy and visit:  
-   👉 **[http://mitm.it](http://mitm.it)**  
-   (This only works when the proxy is running.)
+## Native developer tests
 
-2. You’ll see a page that looks like this:
+Native browser adapters differ from managed appliance Firefox and do not provide the same trust setup. Use a dedicated test profile and verify which mitmproxy configuration directory supplied its CA. If needed, import only the public CA certificate into that profile's authorities store and remove that trust when testing is complete. Do not import a private key or distribute the CA directory.
 
-   > 📥 Download mitmproxy certificate for:  
-   > Windows, macOS, Linux, Android, iOS, etc.
-
-3. Click the one that matches your system or browser.
-4. Follow the instructions to install the certificate.
-5. Once installed, reload any websites that were giving security warnings.
-
----
-
-## 📘 Need Help?
-
-For more details and advanced steps, check out mitmproxy's official guide:  
-👉 [docs.mitmproxy.org/stable/concepts/certificates](https://docs.mitmproxy.org/stable/concepts/certificates/)
-
-It explains:
-- How the CA works
-- Where to install it (macOS, Firefox, Android, etc.)
-- How to uninstall it later if needed
-
----
-
-## 🛡️ Is it safe?
-
-Yes — **if you only use this tool for yourself**. You are creating a trusted connection for your own computer to inspect your own traffic. But you should **never install someone else’s CA** unless you 100% trust them.
+See [native browser development](DEVELOPER_SECURITY_GUIDE.md#native-browser-development) and the [security model](DEVELOPER_SECURITY_GUIDE.md#security-model-and-trust-boundaries) for implementation details and limits. Never enter personal account credentials in a capture session.

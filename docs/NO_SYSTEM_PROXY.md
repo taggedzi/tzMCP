@@ -1,82 +1,17 @@
-# 🚫 Why tzMCP Does Not Use a System-Wide Proxy
+# Why capture uses a local browser proxy
 
-`tzMCP` is designed to **avoid setting a system-wide proxy** on your computer. This choice is intentional — and it's all about **control, safety, and privacy**.
+A system proxy can route supported applications through a shared proxy setting. That can involve unrelated background traffic and affect normal browsing.
 
----
+tzMCP instead starts its capture listener on `127.0.0.1` and configures the capture browser. This loopback address refers to the computer running the proxy; inside the appliance, that computer is the guest VM.
 
-## 🔍 What is a System-Wide Proxy?
+## Appliance boundary
 
-A **system-wide proxy** routes all your internet traffic through a tool like tzMCP — including:
-- Web browsers
-- System updates
-- Background apps
-- Games
-- Cloud services
+The standard appliance workflow does not configure the host browser, Windows proxy, or host certificate store. Managed Firefox uses its own profile and CA trust. Shared clipboard, drag and drop, USB passthrough, and VirtualBox remote desktop are disabled by setup.
 
-This might sound powerful, but it comes with serious downsides.
+The VM still has outbound networking. Capture rules decide which responses are saved; they do not restrict browser navigation or guarantee that only intended traffic passes through the proxy. Other local processes can also connect to its loopback listener.
 
----
+## Native development
 
-## ⚠️ Why It's a Bad Fit for tzMCP
+Native browser adapters pass browser-specific launch settings rather than changing the system proxy. Their profile and certificate behavior varies. Do not infer that a portable browser is a security sandbox or that local proxying makes downloads safe.
 
-### 1. 🔒 Security Risk
-
-If tzMCP sets a global proxy:
-- Apps that were never meant to be inspected (e.g., password managers, OS updaters) would route through it
-- Those apps might break or leak sensitive data
-- If the mitmproxy certificate is installed, you could **accidentally intercept private credentials**
-
-> **tzMCP is designed to inspect only the traffic you choose.**
-
----
-
-### 2. 😵‍💫 Unpredictable Behavior
-
-Some apps and services:
-- Ignore the proxy
-- Break silently
-- Prompt for weird logins
-- Crash
-
-Debugging these issues can be hard — and confusing for new users.
-
----
-
-### 3. ⚙️ OS Settings Mess
-
-Setting a system-wide proxy:
-- Requires admin rights
-- Modifies your operating system settings
-- Can persist even after tzMCP quits or crashes
-- Might affect other user accounts
-
-tzMCP never touches your system configuration — by design.
-
----
-
-## ✅ Our Approach: Scoped Proxying
-
-Instead of applying a global proxy, tzMCP:
-- **Launches portable browsers** with pre-set proxy rules
-- Applies the proxy to **just that browser session**
-- Deletes the browser profile after use (optional)
-- Leaves your OS, default browser, and other apps untouched
-
-This is **cleaner, safer, and easier to undo**.
-
----
-
-## 🧠 Summary
-
-| Feature                  | System-Wide Proxy ❌ | tzMCP Local Proxy ✅ |
-|--------------------------|----------------------|----------------------|
-| Affects all apps         | Yes                  | No                   |
-| Requires admin rights    | Often                | No                   |
-| Breaks system services   | Possibly             | Never                |
-| Easy to reset            | No                   | Yes                  |
-| Safer for beginners      | No                   | Yes                  |
-
----
-
-By avoiding system-wide settings, tzMCP stays **user-friendly and non-invasive** — giving you all the power of media capture, with none of the side effects.
-
+See the [boundary diagram](../README.md#how-the-vm-separates-capture-from-your-computer) and [technical security model](DEVELOPER_SECURITY_GUIDE.md#security-model-and-trust-boundaries).

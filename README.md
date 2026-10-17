@@ -1,331 +1,187 @@
-# 🛰️ tzMCP - Taggedz Media Capture Proxy
+<p align="center">
+  <img src="docs/assets/tzmcp-banner.svg" alt="tzMCP — Capture what you browse. Keep what you need." width="960">
+</p>
 
-**tzMCP** is a GUI and CLI tool that uses [mitmproxy](https://mitmproxy.org/) to intercept and selectively save media from web traffic — including images, videos, HTML, CSS, JavaScript, and other downloadable files.
+<p align="center">
+  <strong>Browse a website. Save the files that match your rules. Export the results.</strong><br>
+  Python 3.12+ · Desktop interface and command line · MIT license · Alpha software
+</p>
 
-## Supported end-user workflow: VirtualBox appliance
+tzMCP stands for **Taggedz Media Capture Proxy**. It saves selected files from web traffic, such as images, videos, audio, documents, and some web page files. You choose which file types, sizes, and websites to keep.
 
-The target supported end-user product is the versioned VirtualBox appliance.
-The appliance implementation and production OVA are still in development;
-until a release is published, use the native workflow only for development.
-When released, import
-the published OVA with `scripts/windows/Setup-tzMCP.ps1`, start the VM, and use
-the tzMCP launcher inside its desktop. The appliance manages its own Firefox
-profile and proxy; do not configure a host browser, Windows proxy, or host
-certificate store.
+A **proxy** sits between a browser and a website. tzMCP uses mitmproxy to inspect the responses coming back to the browser and save matching files.
 
-For installation, first capture, export, recovery, and security-boundary
-details, see [the appliance guide](docs/appliance.md). The native GUI and CLI
-instructions below are developer facilities for working on tzMCP itself.
+> **Project status:** The intended everyday-user version runs inside a VirtualBox virtual machine. A **virtual machine (VM)** is a separate computer running in a window on your computer. The appliance is still in development; this repository does not provide a published production OVA. An **OVA** is the file used to import the ready-made VM. See the [appliance guide](docs/appliance.md) for candidate status. The Python setup is for developers and testing.
 
-Maintainers building an appliance should follow the
-[build and offline verification procedure](docs/appliance-build.md).
+**Find your path:** [First capture](#your-first-capture) · [Capture rules](#choose-what-to-save) · [Export](#get-your-files-out) · [Troubleshooting](#when-something-goes-wrong) · [Developer and security guide](docs/DEVELOPER_SECURITY_GUIDE.md)
 
-It is secure-by-default, lightweight, and designed to be cross-platform and user-friendly.
+## What you can do
 
----
+| Goal | How tzMCP helps |
+| --- | --- |
+| Collect images while browsing | Save matching image responses as they arrive. |
+| Skip thumbnails or oversized files | Set file size and image width/height limits. |
+| Focus on particular websites | Use a domain allow list and block list. |
+| Avoid saving identical content twice | Compare file contents using SHA-256, a digital fingerprint. |
+| Keep a session together | The GUI puts captures and settings into a session folder. |
+| Move results out of the appliance | Export a ZIP archive with captures, metadata, and checksums. |
 
-## ✨ Features
+tzMCP saves files the browser actually requests through the proxy. It does not crawl a whole website, assemble a complete offline website, or combine video segments into a finished movie. Some sites and protected media will not work.
 
-- ✅ **GUI with Tabbed Interface**
-- 🕵️‍♂️ **Runs a MITM Proxy (mitmdump)**
-- 📂 **Media filtering** by:
-  - MIME group (e.g., `image`, `video`, `html`)
-  - File size range
-  - Pixel dimensions
-  - Domain whitelists / blacklists
-- 🧠 **Smart MIME detection** using byte scanning (not just Content-Type)
-- 🧹 **Automatic cleanup** of expired logs and browser profiles
-- 🔐 **Security-first**:
-  - Directory traversal protection
-  - Executable file type warnings
-  - SHA256-based deduplication
-- 💬 **Real-time log stream** to GUI (via internal log server)
-- 🧪 Optional persistent deduplication (SQLite-backed)
-- 🚀 Portable browser launcher with proxy preconfiguration
+## How capture works
 
----
+![Capture flow: choose rules, browse through the proxy, inspect responses, save matching files, then stop and export.](docs/assets/capture-flow.svg)
 
-## 🖥️ GUI Overview
+The browser still receives the website response when a file is skipped. **Capture rules decide what gets saved; they do not block the browser from visiting a site.**
 
-The GUI opens on **Capture Session**, a single guided workflow:
+## Before you begin
 
-1. Start the local capture proxy.
-2. Choose a dedicated portable browser.
-3. Confirm the browser is not your everyday installed browser, then launch it.
+**Use only traffic and content you have permission to capture.** The [usage notice](docs/CYA_NOTICE.md) explains the project's intended use.
 
-**Capture Rules** contains media filters, save location, and logging settings;
-**Activity** shows capture/proxy messages.
+tzMCP decrypts HTTPS traffic passing through its proxy. Do not sign in to personal accounts or enter passwords, payment details, recovery codes, or other private information in the capture browser. A private browsing window does not prevent the proxy from seeing that traffic.
 
-> **Important:** mitmproxy decrypts traffic from the browser it launches. Do not
-> use accounts, passwords, payment details, or other sensitive credentials in a
-> capture session. Use a dedicated portable browser only. Launching an installed
-> everyday browser can interfere with, lock, or change its usual profile.
+Captured files may contain harmful content. Treat exports as untrusted downloads, especially HTML, scripts, documents, and executables. File type filters are not a malware scanner.
 
----
+## Get the appliance ready
 
-## 🚀 Quick Start
+The intended host is **64-bit Windows with VirtualBox 7.1 or newer**. The default VM uses 4 GiB of memory, one virtual CPU, and a dynamically growing 60 GiB disk. Your computer needs room for the VM, captures, and exported ZIP files.
 
-### 1. Clone the repository
+These instructions apply when a release provides an OVA, `SHA256SUMS`, and `Setup-tzMCP.ps1`. Do not assume an arbitrary OVA is an official release.
 
-```bash
-git clone https://github.com/taggedzi/tzMCP
-cd tzmcp
-````
+### Check the download
 
-### 2. Install dependencies (recommended inside a virtualenv)
+1. Put the release files together in a folder and open PowerShell there.
+2. Calculate the OVA's fingerprint and compare it with the value in the release's `SHA256SUMS` file.
 
-```bash
-pip install -r requirements.txt
+```powershell
+Get-FileHash .\tzMCP-appliance.ova -Algorithm SHA256
 ```
 
-> Or, if installing via PyPI (coming soon):
->
-> ```bash
-> pip install tzmcp
-> ```
+The filename above is an example; use the filename supplied with the release. A matching checksum detects changed bytes. It does not establish who published the file, so obtain the checksum from a trusted release source.
 
-### 3. Launch the GUI
+### Import and start
 
-```bash
-python -m tzMCP.gui
+1. Replace `PASTE_THE_PUBLISHED_SHA256_HERE` below with the matching checksum, then run the command.
+2. In the VM desktop, open **tzMCP Capture**.
+
+```powershell
+.\Setup-tzMCP.ps1 -OvaPath .\tzMCP-appliance.ova -ExpectedSha256 'PASTE_THE_PUBLISHED_SHA256_HERE'
 ```
 
----
+The script imports the VM, applies its boundary settings, and starts it. It leaves your host browser, Windows proxy, and host certificate store unchanged. Certificates are the records a browser uses to decide which secure connections it trusts.
 
-## ⚙️ Configuration
+For a different export folder or VM disk location, see the [appliance installation guide](docs/appliance.md#install).
 
-Configuration is stored in tzMCP's per-user application-data directory, not in
-the installation directory. By default this is `%LOCALAPPDATA%\\tzMCP` on
-Windows, `~/Library/Application Support/tzMCP` on macOS, and
-`~/.local/share/tzMCP` on Linux (or `$XDG_DATA_HOME/tzMCP`). Set
-`TZMCP_DATA_DIR` to use a different directory, such as a portable drive.
+## Your first capture
 
-`media_proxy_config.yaml` and `browser_paths.yaml` are created in its `config`
-subdirectory. You can modify them via the GUI or manually. Browser paths start
-empty because executable locations are specific to each machine.
+Follow one short stage at a time. You can return here between stages.
 
-### Example config snippet:
+### Choose the files
 
-```yaml
-# Optional. If omitted, captures are saved to the application's data directory.
-# save_dir: /path/to/tzMCP-captures
-# Local listener used by tzMCP and its browser launcher.
-proxy_port: 8888
-allowed_mime_groups:
-  - image
-  - video
-filter_pixel_dimensions:
-  enabled: true
-  min_width: 300
-  min_height: 300
-  max_width: 12000
-  max_height: 12000
-filter_file_size:
-  enabled: true
-  min_bytes: 10240         # 10KB
-  max_bytes: 157286400     # 150MB
-whitelist: []
-blacklist:
-  - ads\..*
-  - .*\.doubleclick\.net
-log_to_file: true
-log_level: INFO
-auto_reload_config: true
-enable_persistent_dedup: false
-```
+1. Open **Capture Rules** and select **Image** for a first test. No file types are selected by default.
+2. Select **Save Configuration**.
 
----
+The default rules skip files smaller than 10 KiB and images smaller than 301 pixels in either direction. See [capture rules](#choose-what-to-save) if you need smaller files.
 
-## 🔧 CLI Support
+### Start browsing
 
-CLI is supported. Here are the parameters for the CLI.
+1. Open **Capture Session** and select **Start proxy**. Wait for the running message.
+2. Select **Launch Firefox**, then browse a public page you have permission to capture.
 
-```bash
-usage: tzMCP-cli [-h] [--config CONFIG] [--proxy-port PROXY_PORT] [--save-dir SAVE_DIR] [--mime-groups [MIME_GROUPS ...]]
-                 [--whitelist [WHITELIST ...]] [--blacklist [BLACKLIST ...]] [--min-bytes MIN_BYTES]
-                 [--max-bytes MAX_BYTES] [--min-width MIN_WIDTH] [--max-width MAX_WIDTH] [--min-height MIN_HEIGHT]
-                 [--max-height MAX_HEIGHT] [--log-to-file] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--dedup]
-                 [--no-auto-reload]
+The appliance prepares a separate Firefox profile with its proxy and certificate settings. You do not need to configure a host browser or install a host certificate.
 
-tzMCP CLI Media Capture Proxy
+### Finish the session
 
-options:
-  -h, --help            show this help message and exit
-  --config CONFIG       Path to YAML config file
-  --proxy-port PROXY_PORT
-                        TCP port for the local proxy listener
-  --save-dir SAVE_DIR   Directory to save media files
-  --mime-groups [MIME_GROUPS ...]
-                        List of allowed MIME groups
-  --whitelist [WHITELIST ...]
-                        Domain whitelist (domain or regex)
-  --blacklist [BLACKLIST ...]
-                        Domain blacklist (domain or regex)
-  --min-bytes MIN_BYTES
-                        Minimum file size in bytes
-  --max-bytes MAX_BYTES
-                        Maximum file size in bytes
-  --min-width MIN_WIDTH
-                        Minimum image width
-  --max-width MAX_WIDTH
-                        Maximum image width
-  --min-height MIN_HEIGHT
-                        Minimum image height
-  --max-height MAX_HEIGHT
-                        Maximum image height
-  --log-to-file         Enable file logging
-  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
-                        Set log level
-  --dedup               Enable persistent deduplication
-  --no-auto-reload      Disable config auto-reload
-```
+1. Open **Activity** to see which files were saved or skipped.
+2. Return to **Capture Session** and select **Stop** when you are done.
 
----
+**Stop** closes managed Firefox and the proxy. Session rules are copied when capture starts. Save changes before starting your next session; they do not change the appliance session already running.
 
-## 🔒 Security Notes
+## Choose what to save
 
-- MIME detection uses both extension and byte-scanning (via `filetype`)
-- File extensions are **never guessed**
-- Executables are blocked unless explicitly allowed
-- File names are sanitized to prevent directory traversal or reserved name collisions
-- SHA256 deduplication prevents accidental overwrites or re-saves
+Open **Capture Rules** before starting a session. Make a small change, save it, and test with a short browsing session.
 
----
+| Setting | What it means | Starting advice |
+| --- | --- | --- |
+| Allowed MIME Groups | Broad file categories; MIME means file type. | Start with **Image**. Add **Video**, **Audio**, **Text**, or **Document** as needed. |
+| File Size Filter | Smallest and largest files to save, measured in bytes. | Defaults: 10,240 to 157,286,400 bytes (10 KiB to 150 MiB). |
+| Image Dimension Filter | Smallest and largest width and height, measured in pixels. | Defaults: 301–12,000 pixels in each direction. |
+| Whitelist Domains | Websites whose files may be saved. | Leave empty to allow any source domain. |
+| Blacklist Domains | Websites whose files should be skipped. | A block entry wins over an allow entry. |
+| Log to File | Keep diagnostic messages on disk. | Off by default. Logs may include browsing information. |
+| Log Level | How much detail appears in activity/file logs. | Keep **INFO** for normal use. |
+| Persistent Deduplication | Remember file fingerprints across proxy runs. | Off by default; turn on only if you want previously saved content skipped later. |
 
-## 📦 Packaging
+**Text** covers supported text types, including HTML, CSS, and JavaScript. There are no separate `html`, `css`, or `js` groups. **Executable** allows potentially dangerous program files and should be left unchecked for ordinary capture.
 
-When published on PyPI:
+For a domain entry, use a hostname such as `example.com`, one per line. It also matches subdomains such as `images.example.com`, but not `notexample.com`. Do not paste a whole page URL. Some sites serve images from a different domain; that source needs to be allowed too.
 
-```bash
-pip install tzmcp
-tzmcp   # launch GUI (entry point)
-```
+The appliance stores captures inside each session, even though the shared settings screen includes **Save Directory**. Change the host export folder during appliance setup. **Auto Reload Config** does not change a running appliance session.
 
-### Project Metadata
+See the [settings guide](docs/CONFIG_TAB_GUIDE.md) for examples and the [technical configuration reference](docs/DEVELOPER_SECURITY_GUIDE.md#configuration-reference) for exact behavior and limitations.
 
-- **Python version**: 3.12+
-- **Platform**: Windows, Linux, macOS (via tkinter + mitmproxy)
-- **License**: MIT
-- **Dependencies**:
+## Get your files out
 
-  - mitmproxy
-  - Pillow
-  - filetype
-  - psutil
-  - pyyaml
-  - watchdog
-  - requests
+1. After **Stop**, select **Export Session**.
+2. On your Windows computer, open the export folder. Its default location is `Documents\tzMCP Exports` under your user account.
 
----
-
-## 📁 Folder Layout
-
-This is the repository layout. Runtime configuration, captures, logs, and
-browser profiles are instead created under the per-user application-data
-directory described above.
+Open the ZIP and extract it into a new folder before reviewing the files. Export the finished or recovered session before starting another one.
 
 ```text
-├── .github\
-├── .gitignore
-├── .pylintrc
-├── .treeignore
-├── cache\
-├── config\
-│   ├── browser_paths.yaml
-│   └── media_proxy_config.yaml
-├── docs\
-├── LICENSE
-├── pyproject.toml
-├── README.md
-├── requirements.txt
-├── scripts\
-│   ├── clean_unused_packages.py
-│   └── tree_maker.py
-├── src\
-│   ├── config\
-│   │   └── browser_paths.yaml
-│   └── tzMCP\
-│       ├── __init__.py
-│       ├── browser_plugins\
-│       │   ├── __init__.py
-│       │   ├── brave.py
-│       │   ├── chrome.py
-│       │   ├── firefox.py
-│       │   ├── iron.py
-│       │   ├── kmeleon.py
-│       │   ├── librewolf.py
-│       │   ├── opera.py
-│       │   ├── seamonkey.py
-│       │   └── vivaldi.py
-│       ├── cli.py
-│       ├── common_utils\
-│       │   ├── __init__.py
-│       │   ├── cleanup_logs.py
-│       │   ├── cleanup_profiles.py
-│       │   └── log_config.py
-│       ├── gui.py
-│       ├── gui_bits\
-│       │   ├── __init__.py
-│       │   ├── app_constants.py
-│       │   ├── browser_launcher.py
-│       │   ├── browser_tab.py
-│       │   ├── config_manager.py
-│       │   ├── config_tab.py
-│       │   ├── log_server.py
-│       │   ├── proxy_control.py
-│       │   ├── proxy_tab.py
-│       │   └── status_bar.py
-│       ├── save_media.py
-│       └── save_media_utils\
-│           ├── __init__.py
-│           ├── config_provider.py
-│           ├── gen_whitelist_regex.py
-│           ├── hash_tracker.py
-│           ├── mime_categories.py
-│           ├── mime_data_minimal.py
-│           └── save_media_utils.py
-├── tasks.py
-└── tests\
+<session-id>.zip
+├── SHA256SUMS                  File fingerprints for integrity checks
+└── <session-id>/
+    ├── capture/                Saved files
+    ├── logs/                   Session log files, when present
+    ├── capture-config.yaml     Rules used for this session
+    └── session.json            Times, totals, warnings, and versions
 ```
 
----
+The export excludes the managed browser profile and the proxy's certificate private key. Captured content is kept as received; it can still contain private data. Log cleanup removes some known sensitive patterns, but it is not a guarantee that an archive is safe to share.
 
-## 🧪 Testing
+If copying to Windows fails, the completed local archive stays inside the VM. Check the folder and available disk space, then retry **Export Session**. Export copies the results; it does not erase the original captures inside the VM.
 
-Run the suite with pytest (no install required — `pyproject.toml` sets
-`pythonpath = ["src"]`):
+## When something goes wrong
 
-```bash
-pytest              # or: invoke test
-pytest --cov=tzMCP  # or: invoke coverage
-```
+Use the first action for your symptom, then check **Activity** for the result.
 
-The suite covers the media filters and sanitizers, config validation and
-load/save, hash-based deduplication, the CLI config merge, and the
-`MediaSaver.response()` capture pipeline (driven by mocked mitmproxy flows).
-It is fully isolated and never touches your real `config/`, `logs/`, or
-`cache/` directories.
+| Symptom | First useful action |
+| --- | --- |
+| Nothing is saved | Check that a MIME group is selected and saved before capture starts. |
+| Small pictures are missing | Lower the minimum file size and image dimensions for the next session. |
+| A site's images are missing | Check Activity for the source domain and any allow-list rejection. |
+| A file says “duplicate” | Identical bytes were saved earlier; persistent deduplication can remember earlier runs too. |
+| Proxy will not start | Read the startup error in Activity; another process may already use the configured port. |
+| Firefox shows certificate errors | Stop the session and check Activity. Use managed Firefox inside the VM; do not install a certificate on Windows to fix this. |
+| “No space left on device” | Free space inside the guest before retrying capture or export. Do not delete the session you need. |
+| Export fails | Check host and guest free space and the configured Windows export folder, then retry. |
+| The app or VM crashed | Reopen tzMCP; it can recover the active session as **INTERRUPTED** for export. |
 
-Domain whitelist/blacklist entries that are bare hostnames (for example,
-`example.com`) match that domain and its subdomains, but not lookalikes such
-as `notexample.com`. Entries containing regex syntax are matched as regular
-expressions, so patterns such as `.*\.doubleclick\.net` work as written.
+Saved captures and the appliance's rules persist across VM reboots. The managed Firefox profile is removed after normal session cleanup. Profile deletion is not secure disk erasure, and a crash can leave temporary data behind.
 
----
+When reporting a problem, include the exact error, appliance/app version, and what you did just before it happened. Review logs for private information before sharing them.
 
-## 📝 License
+## How the VM separates capture from your computer
 
-MIT License. See `LICENSE` file for full text.
+![Security boundary: managed Firefox, proxy, and captures stay inside the VM; a controlled export operation copies an archive to a host folder.](docs/assets/appliance-boundary.svg)
 
----
+The standard setup uses NAT networking with no port forwarding. Shared clipboard, drag and drop, USB passthrough, and VirtualBox remote desktop are disabled. The export share is mounted only for the export operation.
 
-## 🙌 Acknowledgements
+The VM reduces contact with your everyday environment. It does not make hostile websites or downloaded files harmless, and NAT does not isolate it from every destination on your local network. See the [security review](docs/DEVELOPER_SECURITY_GUIDE.md#security-model-and-trust-boundaries) for the exact boundary.
 
-- Built on top of [mitmproxy](https://mitmproxy.org/)
-- Inspired by the need for a safe, auditable web media capture tool
+## Modify or develop tzMCP
 
----
+For everyday changes, use **Capture Rules**. For code changes, use the [developer and security guide](docs/DEVELOPER_SECURITY_GUIDE.md). It covers source installation, command-line usage, architecture, tests, and where to change each feature.
 
-## Leagal
+Native GUI and CLI workflows remain development tools. They do not provide the appliance's host boundary. The guide also lists current native-workflow limitations.
 
-Please understand and read the terms of this software before using it. They are located here: [CYA_NOTICE.md](./CYA_NOTICE.md).
+| Documentation | Audience |
+| --- | --- |
+| [Appliance guide](docs/appliance.md) | Users installing, capturing, exporting, or recovering sessions |
+| [Capture settings](docs/CONFIG_TAB_GUIDE.md) | Users adjusting filters |
+| [Developer and security guide](docs/DEVELOPER_SECURITY_GUIDE.md) | Contributors, advanced operators, and security reviewers |
+| [Appliance build guide](docs/appliance-build.md) | Maintainers building and verifying release images |
+| [Contributing](CONTRIBUTING.md) | Contributors preparing changes |
+| [Usage notice](docs/CYA_NOTICE.md) · [MIT license](LICENSE) | Users and contributors |
+
+Built with [mitmproxy](https://mitmproxy.org/), Tkinter, Pillow, and the other dependencies declared in [pyproject.toml](pyproject.toml).

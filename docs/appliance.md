@@ -1,5 +1,9 @@
 # tzMCP VirtualBox appliance guide
 
+For a visual introduction and first capture, see the [README](../README.md).
+For architecture, configuration internals, and security limitations, see the
+[developer and security guide](DEVELOPER_SECURITY_GUIDE.md).
+
 This guide describes the supported end-user workflow for a published tzMCP
 appliance on a 64-bit Windows host with VirtualBox 7.1 or newer.
 

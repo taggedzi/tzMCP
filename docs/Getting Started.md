@@ -1,19 +1,19 @@
-# Getting Started
+# Getting started with tzMCP
 
-So you want to capture media from a website? This is the place for you!. This tool will help you do that. It will require some setup and configuration, but it's worth it.
+Start with the [README](../README.md). It explains the project, current release status, and first capture in short stages, with diagrams.
 
-Setting up a proxy like this can be tricky, so we've put together several guides with the steps needed to get started.
+The intended everyday-user workflow is the VirtualBox appliance. It is still in development, and no published production OVA is supplied by this repository. The native Python/browser setup is for developers and testing.
 
-1. [Install tzMCP](./PROJECT_SETUP_GUIDE.md)
-2. [Install a portable browser](./PORTABLE_BROWSER_GUIDE.md)
-3. [Connect your browser to tzMCP](./CONNECT_BROWSER_GUIDE.md)
-4. Launch your browser through tzMCP (click "Launch Browser" in the **Browser Launch** tab)
-5. Turn On the Proxy (click the "start" button in the **Proxy Settings** tab)
-6. [Install the mitmproxy CA certificate](./CA_SETUP_GUIDE.md)
-7. Surf the web.
+## Choose your guide
 
-There are a lot of options and settings to configure. Here is the guide for that: [Configuration Guide](./CONFIG_TAB_GUIDE.md)
+| What you need | Guide |
+| --- | --- |
+| Understand capture and make a first session | [README](../README.md#your-first-capture) |
+| Import the appliance and export files | [Appliance guide](appliance.md) |
+| Change which files are saved | [Capture Rules](CONFIG_TAB_GUIDE.md) |
+| Install from source or change the code | [Developer and security guide](DEVELOPER_SECURITY_GUIDE.md) |
+| Review certificate trust | [CA guide](CA_SETUP_GUIDE.md) |
 
-Proxies are simple in concept but due to all of the options and moving parts it can be difficult I have tried to minimize the difficulty, and make it easy to use. However it is not perfect.  Many sites employ complicated or half/assed techeniques that can cause problems for the proxy. So this will not work on EVERY site.
+The current tabs are **Capture Session**, **Capture Rules**, and **Activity**. Start the proxy before launching the capture browser. Select and save at least one file type before capture; none are enabled by default.
 
-Please understand and read the terms of this software before using it they are located [here](./CYA_NOTICE.md).
+HTTPS traffic is decrypted by the proxy. Do not enter private credentials in the capture browser. Read the [usage notice](CYA_NOTICE.md) before capturing content.

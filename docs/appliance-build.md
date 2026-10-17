@@ -1,5 +1,9 @@
 # Maintainer appliance builds
 
+See the [developer and security guide](DEVELOPER_SECURITY_GUIDE.md) for the
+code architecture, trust boundaries, and test workflow. User installation and
+capture instructions are in the [appliance guide](appliance.md).
+
 Build locally on the controlled maintainer machine. A successful build is a
 candidate; publication still requires the transition plan's acceptance matrix.
 Generated images, credentials, and audit output must remain outside Git.
