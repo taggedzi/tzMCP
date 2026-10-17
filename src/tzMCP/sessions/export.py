@@ -82,12 +82,14 @@ class SessionExporter:
         if config.is_symlink() or not config.is_file():
             raise SessionExportError("Session configuration snapshot is missing or unsafe")
         config_member = f"{prefix}/capture-config.yaml"
-        payload[config_member] = config.read_bytes()
-        effective_config = yaml.safe_load(payload[config_member]) or {}
+        effective_config = yaml.safe_load(config.read_bytes()) or {}
         if isinstance(effective_config, dict):
             effective_config.pop("save_dir", None)
         else:
             effective_config = {}
+        # save_dir points into the VM's private session tree. Keep the
+        # effective capture rules, but never publish that absolute guest path.
+        payload[config_member] = yaml.safe_dump(effective_config, sort_keys=False).encode("utf-8")
         session_data: dict[str, Any] = {
             "schema_version": 1,
             "session_id": record.session_id,
@@ -98,7 +100,7 @@ class SessionExporter:
             "capture_count": record.capture_count,
             "capture_bytes": record.capture_bytes,
             "warnings": record.warnings,
-            "errors": record.errors,
+            "errors": [sanitize_log(error.encode("utf-8")).decode("utf-8") for error in record.errors],
             "versions": versions or {},
             "effective_config": effective_config,
         }

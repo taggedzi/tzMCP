@@ -11,10 +11,11 @@ setup_logging()
 
 class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-instance-attributes
     """Config tab for the GUI."""
-    def __init__(self, parent, config_manager: ConfigManager, config: Config):
+    def __init__(self, parent, config_manager: ConfigManager, config: Config, on_config_saved=None):
         super().__init__(parent)
         self.config_manager = config_manager
         self.config = config
+        self.on_config_saved = on_config_saved
         self.mime_group_vars = {}
         self._build_ui()
 
@@ -181,9 +182,11 @@ class ConfigTab(ttk.Frame):     # pylint: disable=too-many-ancestors,too-many-in
             )
             self.config_manager._validate_config(new_cfg)  # pylint: disable=protected-access
             self.config_manager.save_config(new_cfg)
+            self.config = new_cfg
+            if self.on_config_saved is not None:
+                self.on_config_saved(new_cfg)
             log_gui.debug("Configuration saved successfully.")
             messagebox.showinfo("Success", "Configuration saved successfully.")
-            self.config = new_cfg
         except Exception as e:  # pylint: disable=broad-exception-caught
             log_gui.exception(
                 "Could not save the configuration. Correct the highlighted values or check "

@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+# VMSVGA/VBoxSVGA can start at a mode that leaves Xfce's framebuffer black on
+# some Windows hosts. Applying the same supported mode explicitly redraws it.
+attempt=0
+while [ "$attempt" -lt 15 ]; do
+    output=$(xrandr --query | awk '$2 == "connected" { print $1; exit }')
+    if [ -n "$output" ] && xrandr --query | grep -q '1024x768'; then
+        xrandr --output "$output" --mode 1024x768
+        exit 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+
+exit 0

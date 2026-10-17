@@ -2,6 +2,10 @@
 
 Date: 2026-07-23
 
+> Historical checkpoint. The display problem below has since been resolved.
+> For current builds, verification results, and remaining work, use the
+> [transition plan's current resume point](2026-07-23-virtualbox-appliance-transition.md#current-resume-point-2026-10-17).
+
 ## Current state
 
 - The appliance built successfully with Packer from `ubuntu-24.04.4-live-server-amd64.iso`.

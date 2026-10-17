@@ -25,7 +25,7 @@ class MainApp(tk.Tk):
         self.title("tzMCP Media Capture Proxy")
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        config_file = config_dir() / "media_proxy_config.yaml"
+        self.config_file = config_dir() / "media_proxy_config.yaml"
         profile_root = profiles_dir()
         log_dir = logs_dir()
 
@@ -36,10 +36,10 @@ class MainApp(tk.Tk):
         clean_old_profiles(profile_root, max_age_days=3)
         clean_old_logs(log_dir, max_age_days=7)
 
-        log_gui.info(f"Application data directory: {config_file.parent.parent}")
-        log_gui.debug(f"Config file: {config_file}")
-        log_gui.debug(f"Config file exists: {config_file.exists()}")
-        config_file.parent.mkdir(parents=True, exist_ok=True)
+        log_gui.info(f"Application data directory: {self.config_file.parent.parent}")
+        log_gui.debug(f"Config file: {self.config_file}")
+        log_gui.debug(f"Config file exists: {self.config_file.exists()}")
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
         self.config_manager = ConfigManager()
         self.config        = self.config_manager.load_config()
         self.session_manager = SessionManager()
@@ -52,7 +52,7 @@ class MainApp(tk.Tk):
         self.proxy_controller = ProxyController(
             proxy_executable_path=str(Path(__file__).parent / "save_media.py"),
             proxy_port=self.config.proxy_port,
-            config_path=config_file,
+            config_path=self.config_file,
             confdir=ca_dir() if is_appliance_mode() else None,
             log_dir=log_dir,
         )
@@ -62,6 +62,8 @@ class MainApp(tk.Tk):
         start_gui_log_server(self.gui_queue)
         
         self.build_ui()
+        if recovered is not None:
+            self.browser_tab.restore_recovered_session(recovered)
         # ensure we intercept window-close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -84,6 +86,13 @@ class MainApp(tk.Tk):
                 )
                 from tkinter import messagebox
                 messagebox.showerror("Error", f"Failed to reload config: {e}")
+
+    def _on_config_saved(self, config):
+        """Apply newly saved rules to the next capture session."""
+        self.config = config
+        self.browser_tab.config = config
+        if self.proxy_controller.process is None:
+            self.proxy_controller.proxy_port = config.proxy_port
 
     def report_callback_exception(self, exc, val, tb):
         """Report unexpected Tk callback failures to the console with a traceback."""
@@ -118,12 +127,14 @@ class MainApp(tk.Tk):
             self.proxy_tab._append_json_log,
             session_manager=self.session_manager,
             config=self.config,
-            persistent_config_path=config_file,
+            persistent_config_path=self.config_file,
         )
         notebook.add(self.browser_tab, text="Capture Session")
 
         self.config_manager.set_logger(log_gui)
-        config_tab = ConfigTab(notebook, self.config_manager, self.config)
+        config_tab = ConfigTab(
+            notebook, self.config_manager, self.config, on_config_saved=self._on_config_saved
+        )
         notebook.add(config_tab, text="Capture Rules")
         notebook.add(self.proxy_tab, text="Activity")
 

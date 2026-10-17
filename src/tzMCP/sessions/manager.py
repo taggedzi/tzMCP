@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import copy
-import hashlib
+import os
 import secrets
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -36,32 +37,65 @@ class SessionManager:
             fd.close()
         except FileExistsError as exc:
             raise RuntimeError("Another tzMCP session is already active") from exc
-        session_id = self._new_id()
-        directory = self.storage.create_layout(session_id)
-        effective = copy.deepcopy(config)
-        effective.save_dir = directory / "capture"
-        snapshot = write_config_snapshot(effective, directory / "metadata")
-        # Keep the snapshot path discoverable without making it part of the
-        # public state schema yet; its contents are the authoritative config.
-        record = SessionRecord(session_id=session_id, started_at=_utc_now())
-        self.storage.write_state(record)
-        self.active_path.write_text(session_id + "\n", encoding="ascii")
-        return record
+        try:
+            session_id = self._new_id()
+            directory = self.storage.create_layout(session_id)
+            effective = copy.deepcopy(config)
+            effective.save_dir = directory / "capture"
+            write_config_snapshot(effective, directory / "metadata")
+            # Keep the snapshot path discoverable without making it part of
+            # the public state schema yet; its contents are authoritative.
+            record = SessionRecord(session_id=session_id, started_at=_utc_now())
+            self.storage.write_state(record)
+            self._write_active_pointer(session_id)
+            return record
+        except Exception:
+            # A failed initialization must not strand the exclusive lock. The
+            # incomplete session directory is left intact for diagnosis; no
+            # capture process has started at this point.
+            self._release_lock()
+            raise
+
+    def _write_active_pointer(self, session_id: str) -> None:
+        fd, temporary = tempfile.mkstemp(
+            prefix=".active-session-", suffix=".tmp", dir=self.runtime_root
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="ascii", newline="\n") as handle:
+                handle.write(session_id + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, self.active_path)
+        except Exception:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+            raise
 
     def get(self, session_id: str) -> SessionRecord:
         return self.storage.read_state(validate_session_id(session_id))
+
+    def get_summary(self, session_id: str) -> SessionRecord:
+        """Read current capture totals without rewriting the persisted state."""
+        record = self.get(session_id)
+        if record.state in (SessionState.NEW, SessionState.RUNNING):
+            self._count_capture_files(record)
+        return record
 
     def transition(self, session_id: str, state: SessionState) -> SessionRecord:
         record = self.get(session_id)
         record.transition(state)
         now = _utc_now()
-        if state in (SessionState.ENDED, SessionState.INTERRUPTED):
+        release_active = state in (SessionState.ENDED, SessionState.INTERRUPTED)
+        if release_active:
             record.ended_at = record.ended_at or now
             self._count_capture_files(record)
-            self._release_active()
         elif state is SessionState.EXPORTED:
             record.exported_at = record.exported_at or now
         self.storage.write_state(record)
+        if release_active:
+            self._release_active()
         return record
 
     def record_process(self, session_id: str, name: str, identity: ProcessIdentity) -> SessionRecord:
@@ -72,6 +106,18 @@ class SessionManager:
         if not name or "/" in name or "\\" in name:
             raise ValueError("Invalid process record name")
         record.process_records[name] = identity.to_dict()
+        self.storage.write_state(record)
+        return record
+
+    def record_error(self, session_id: str, error: str) -> SessionRecord:
+        """Persist an actionable failure while a session is being initialized or run."""
+        message = str(error).strip()
+        if not message:
+            raise ValueError("Session error must not be empty")
+        record = self.get(session_id)
+        if record.state not in (SessionState.NEW, SessionState.RUNNING):
+            raise RuntimeError("Errors can only be attached to an active session")
+        record.errors.append(message)
         self.storage.write_state(record)
         return record
 
@@ -96,6 +142,9 @@ class SessionManager:
             self.active_path.unlink()
         except FileNotFoundError:
             pass
+        self._release_lock()
+
+    def _release_lock(self) -> None:
         try:
             self.lock_path.unlink()
         except FileNotFoundError:

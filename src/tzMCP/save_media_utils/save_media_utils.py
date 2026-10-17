@@ -259,16 +259,16 @@ def is_directory_traversal_attempted(save_path:str):
     log_duration("is_directory_traversal_attempted() ", start_check)
     return response
 
-def atomic_save(content: bytes, save_path: Path, size: int):
+def atomic_save(content: bytes, save_path: Path, size: int) -> bool:
     """
     Write content to a temporary file and atomically move it to the final path.
-    Ensures no partial file writes and handles cleanup on failure.
+    Clean up partial files on failure and return whether publication succeeded.
     """
     tmp_path = None
     try:
         with NamedTemporaryFile('wb', delete=False, dir=save_path.parent) as tmp:
-            tmp.write(content)
             tmp_path = Path(tmp.name)
+            tmp.write(content)
 
         final_path = save_path
         counter = 1
@@ -278,6 +278,7 @@ def atomic_save(content: bytes, save_path: Path, size: int):
 
         os.replace(tmp_path, final_path)
         log_proxy.info(f"💾 Saved → {final_path} ({size} B)")
+        return True
 
     except PermissionError:
         log_proxy.error(f"❌ Permission denied: {save_path}")
@@ -290,3 +291,5 @@ def atomic_save(content: bytes, save_path: Path, size: int):
     except Exception as e:
         log_proxy.error(f"❌ Unexpected save failure: {e}")
         cleanup_temp_file(tmp_path)
+
+    return False

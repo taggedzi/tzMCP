@@ -41,6 +41,13 @@ def profiles_dir() -> Path:
     return data_dir() / "profiles"
 
 
+def appliance_browser_dir(session_id: str) -> Path:
+    """Place a session profile where the confined Firefox snap can read it."""
+    from tzMCP.sessions.models import validate_session_id
+
+    return Path.home() / "snap" / "firefox" / "common" / "tzmcp-profiles" / validate_session_id(session_id)
+
+
 def sessions_dir() -> Path:
     """Return the root for isolated capture sessions."""
     return data_dir() / "sessions"

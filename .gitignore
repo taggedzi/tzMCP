@@ -76,6 +76,7 @@ packer.exe
 
 # Packer build cache (large ISO downloads, lock files)
 packer_cache/
+/output-*/
 *.iso
 
 # Manual VirtualBox debug screenshots

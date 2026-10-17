@@ -1,4 +1,5 @@
 import hashlib
+import json
 import zipfile
 
 import pytest
@@ -39,6 +40,38 @@ def test_export_is_deterministic_and_manifest_covers_payload(tmp_path):
             assert hashlib.sha256(archive.read(name)).hexdigest() == expected
         assert b"[REDACTED]" in archive.read(prefix + "logs/proxy.log")
         assert b"secret" not in archive.read(prefix + "logs/proxy.log")
+
+
+def test_exported_capture_config_omits_absolute_guest_save_path(tmp_path):
+    manager, record = _ended_session(tmp_path)
+    result = SessionExporter(manager.storage).export(record, tmp_path / "exports")
+
+    with zipfile.ZipFile(result.archive_path) as archive:
+        config = archive.read(f"{record.session_id}/capture-config.yaml")
+        session = archive.read(f"{record.session_id}/session.json")
+
+    assert b"save_dir:" not in config
+    assert str(manager.storage.session_dir(record.session_id)).encode() not in config
+    assert b"save_dir" not in session
+    assert str(manager.storage.session_dir(record.session_id)).encode() not in session
+
+
+def test_export_sanitizes_session_error_fields(tmp_path):
+    manager, record = _ended_session(tmp_path)
+    record.errors.append(
+        "Proxy failed at https://example.test/?token=secret; Cookie: session=secret"
+    )
+    manager.storage.write_state(record)
+
+    result = SessionExporter(manager.storage).export(record, tmp_path / "exports")
+
+    with zipfile.ZipFile(result.archive_path) as archive:
+        session = json.loads(archive.read(f"{record.session_id}/session.json"))
+
+    assert session["errors"] == [
+        "Proxy failed at https://example.test/?token=[REDACTED] Cookie: [REDACTED]"
+    ]
+    assert "secret" not in str(session["errors"])
 
 
 def test_export_rejects_active_session_and_symlinks(tmp_path):

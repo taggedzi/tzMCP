@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=tzMCP display mode setup
+Exec=/usr/local/bin/tzmcp-display-mode
+OnlyShowIn=XFCE;
+X-GNOME-Autostart-enabled=true

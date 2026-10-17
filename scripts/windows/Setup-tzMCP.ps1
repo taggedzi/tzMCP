@@ -6,13 +6,17 @@ param(
 
     [string]$ExpectedSha256,
     [string]$VmName = "tzMCP-appliance",
+    [string]$VmBaseFolder,
     [string]$ExportPath = (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "tzMCP Exports"),
-    [ValidateRange(1, 32)] [int]$Cpu = 2,
+    [ValidateRange(1, 32)] [int]$Cpu = 1,
     [ValidateRange(1024, 65536)] [int]$MemoryMb = 4096,
     [ValidateRange(10240, 1048576)] [int]$DiskSizeMb = 61440
 )
 
 $ErrorActionPreference = "Stop"
+if ($DiskSizeMb -lt 61440) {
+    throw "The appliance disk cannot be shrunk below its 61440 MB image size."
+}
 
 function Get-VBoxManage {
     $command = Get-Command VBoxManage.exe -ErrorAction SilentlyContinue
@@ -21,10 +25,10 @@ function Get-VBoxManage {
     }
     $programFiles = [Environment]::GetFolderPath("ProgramFiles")
     $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
-    $candidates = @(
+    $candidates = @(@(
         (Join-Path $programFiles "Oracle\VirtualBox\VBoxManage.exe"),
         (Join-Path $programFilesX86 "Oracle\VirtualBox\VBoxManage.exe")
-    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) }
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) })
     if ($candidates.Count -eq 0) {
         throw "VirtualBox 7.1+ is required; VBoxManage.exe was not found on PATH or in the standard installation locations."
     }
@@ -65,14 +69,53 @@ if ($existing -match ('"' + [regex]::Escape($VmName) + '"')) {
     throw "A VirtualBox VM named '$VmName' already exists. Choose another name or remove it manually."
 }
 
-New-Item -ItemType Directory -Path $ExportPath -Force | Out-Null
 if ($PSCmdlet.ShouldProcess($VmName, "Import and configure VirtualBox appliance")) {
-    Invoke-VBoxManage $vbox @("import", $resolvedOva, "--vsys", "0", "--vmname", $VmName)
+    New-Item -ItemType Directory -Path $ExportPath -Force | Out-Null
+    $importArguments = @("import", $resolvedOva, "--options", "importtovdi", "--vsys", "0", "--vmname", $VmName)
+    if (-not [string]::IsNullOrWhiteSpace($VmBaseFolder)) {
+        $resolvedBaseFolder = [IO.Path]::GetFullPath($VmBaseFolder)
+        [void][IO.Directory]::CreateDirectory($resolvedBaseFolder)
+        $importArguments += @("--basefolder", $resolvedBaseFolder)
+    }
+    Invoke-VBoxManage $vbox $importArguments
+    # This appliance has exactly one disk. Use its returned UUID, not a guessed
+    # host path; VDI supports expansion and the guest grows ext4 on first boot.
+    $importedInfo = @(& $vbox showvminfo $VmName --machinereadable)
+    if ($LASTEXITCODE -ne 0) { throw "Could not inspect imported VM storage." }
+    $diskIds = @($importedInfo | ForEach-Object {
+        if ($_ -match '^"[^"\r\n]+-ImageUUID-[0-9]+-[0-9]+"="([a-fA-F0-9-]{36})"$' -and
+            $Matches[1] -ne '00000000-0000-0000-0000-000000000000') { $Matches[1] }
+    })
+    if ($diskIds.Count -ne 1) { throw "Expected exactly one imported appliance disk." }
+    if ($DiskSizeMb -gt 61440) {
+        Invoke-VBoxManage $vbox @("modifymedium", "disk", $diskIds[0], "--resize", "$DiskSizeMb")
+    }
     Invoke-VBoxManage $vbox @("modifyvm", $VmName, "--cpus", "$Cpu", "--memory", "$MemoryMb",
         "--nic1", "nat", "--nic2", "none", "--clipboard-mode", "disabled",
-        "--drag-and-drop", "disabled", "--usb", "off")
+        "--drag-and-drop", "disabled", "--usb", "off", "--vram", "128",
+        "--graphicscontroller", "vboxsvga", "--vrde", "off")
     Invoke-VBoxManage $vbox @("sharedfolder", "add", $VmName, "--name", "tzmcp-export",
         "--hostpath", (Resolve-Path -LiteralPath $ExportPath).Path)
-    Invoke-VBoxManage $vbox @("showvminfo", $VmName, "--machinereadable") | Out-Host
+    $verifiedInfo = @(Invoke-VBoxManage $vbox @("showvminfo", $VmName, "--machinereadable"))
+    $requiredSettings = @("cpus=$Cpu", "memory=$MemoryMb", 'nic1="nat"',
+        'clipboard="disabled"', 'draganddrop="disabled"', 'usb="off"',
+        'ehci="off"', 'xhci="off"', 'vrde="off"')
+    foreach ($adapter in 2..8) { $requiredSettings += "nic$adapter=`"none`"" }
+    foreach ($setting in $requiredSettings) {
+        if ($verifiedInfo -notcontains $setting) {
+            throw "VM verification failed before startup: expected $setting"
+        }
+    }
+    if (@($verifiedInfo | Where-Object { $_ -match '^Forwarding\(' }).Count -ne 0) {
+        throw "VM verification failed before startup: port forwarding is configured."
+    }
+    $shareNames = @($verifiedInfo | Where-Object { $_ -match '^SharedFolderNameMachineMapping[0-9]+=' })
+    $expectedHostPath = (Resolve-Path -LiteralPath $ExportPath).Path.Replace('\', '\\')
+    if ($shareNames.Count -ne 1 -or $shareNames[0] -ne 'SharedFolderNameMachineMapping1="tzmcp-export"' -or
+        $verifiedInfo -notcontains "SharedFolderPathMachineMapping1=`"$expectedHostPath`"" -or
+        @($verifiedInfo | Where-Object { $_ -match '^SharedFolderAutoMount.*="?(1|yes|on|true)' }).Count -ne 0) {
+        throw "VM verification failed before startup: unexpected shared-folder configuration."
+    }
+    $verifiedInfo | Out-Host
     Invoke-VBoxManage $vbox @("startvm", $VmName, "--type", "gui")
 }

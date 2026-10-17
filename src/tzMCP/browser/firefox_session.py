@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import psutil
 
+from tzMCP.paths import ensure_private_dir
 from tzMCP.sessions.processes import ProcessIdentity, verify_process_identity
-
 
 CA_NICKNAME = "tzMCP mitmproxy CA"
 
@@ -28,7 +28,9 @@ class FirefoxSession:
         certutil: Path | str = "certutil",
         runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
     ):
-        self.executable = executable.resolve()
+        # Snap launchers rely on the symlink name (for example,
+        # /snap/bin/firefox -> /usr/bin/snap) to select the application.
+        self.executable = executable.absolute()
         self.session_browser_dir = session_browser_dir.resolve()
         self.ca_certificate = ca_certificate.resolve()
         self.proxy_port = proxy_port
@@ -43,8 +45,8 @@ class FirefoxSession:
             raise FirefoxSessionError(f"Firefox executable not found: {self.executable}")
         if not self.ca_certificate.is_file():
             raise FirefoxSessionError(f"CA certificate not found: {self.ca_certificate}")
-        self.session_browser_dir.mkdir(parents=True, exist_ok=True)
-        self.profile_dir.mkdir(parents=False, exist_ok=False)
+        ensure_private_dir(self.session_browser_dir)
+        self.profile_dir.mkdir(mode=0o700, parents=False, exist_ok=False)
         if not 1 <= self.proxy_port <= 65535:
             raise FirefoxSessionError("Firefox proxy port is invalid")
         (self.profile_dir / "user.js").write_text(
@@ -110,14 +112,51 @@ class FirefoxSession:
     def stop(self) -> None:
         if self.identity is None:
             return
-        if not verify_process_identity(self.identity):
-            raise FirefoxSessionError("Refusing to stop an unverified Firefox process")
-        process = psutil.Process(self.identity.pid)
-        descendants = process.children(recursive=True)
-        for child in descendants:
-            child.terminate()
-        process.terminate()
-        _, alive = psutil.wait_procs([*descendants, process], timeout=5)
+        roots: dict[int, psutil.Process] = {}
+        if verify_process_identity(self.identity):
+            process = psutil.Process(self.identity.pid)
+            roots[process.pid] = process
+
+        # Firefox Snap can exec into a different binary after Popen returns.
+        # In that case the original PID no longer matches its launch identity,
+        # even though the new process still owns this unique private profile.
+        # Match the exact profile and owner, then take a fresh PID/start-time
+        # identity before stopping that process tree.
+        profile = str(self.profile_dir.resolve())
+        for candidate in psutil.process_iter(["cmdline", "username"]):
+            try:
+                info = candidate.info
+                command = info.get("cmdline") or []
+                owner = info.get("username")
+                if profile not in command or (self.identity.owner is not None and owner != self.identity.owner):
+                    continue
+                process = psutil.Process(candidate.pid)
+                identity = ProcessIdentity.from_process(process)
+                if profile not in (process.cmdline() or []) or not verify_process_identity(identity):
+                    continue
+                roots[process.pid] = process
+            except (psutil.Error, OSError, ValueError):
+                continue
+
+        if not roots:
+            # Firefox may already have been closed normally. Do not signal an
+            # unrelated process if the recorded launcher PID has since changed.
+            self.process = None
+            self.identity = None
+            return
+
+        descendants: dict[int, psutil.Process] = {}
+        for process in roots.values():
+            try:
+                for child in process.children(recursive=True):
+                    descendants[child.pid] = child
+            except psutil.Error:
+                continue
+        targets_by_pid = {**descendants, **roots}
+        targets = list(targets_by_pid.values())
+        for process in targets:
+            process.terminate()
+        _, alive = psutil.wait_procs(targets, timeout=5)
         for child in alive:
             child.kill()
         self.process = None
@@ -128,3 +167,7 @@ class FirefoxSession:
             self.stop()
         if self.profile_dir.exists():
             shutil.rmtree(self.profile_dir)
+        try:
+            self.session_browser_dir.rmdir()
+        except OSError:
+            pass

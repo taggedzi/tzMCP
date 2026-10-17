@@ -131,7 +131,7 @@ class MediaSaver:
             if is_valid_image(content) and is_image_size_out_of_bounds(content, fname):
                 return
 
-        if is_duplicate(content):
+        if is_duplicate(content, register=False):
             log_proxy.info(f"⏭ Skipped duplicate content (SHA256 matched): {fname}")
             return
 
@@ -139,7 +139,8 @@ class MediaSaver:
         if not is_directory_traversal_attempted(save_path):
             self.config.save_dir.mkdir(parents=True, exist_ok=True)
 
-        atomic_save(content, save_path, size)
+        if atomic_save(content, save_path, size):
+            is_duplicate(content)
         log_duration("response()", start_total)
 
 addons = [MediaSaver()]

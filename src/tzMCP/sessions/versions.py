@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import platform
+import shutil
 import subprocess
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -18,7 +19,10 @@ def _package_version(name: str) -> str:
 
 def _executable_version(executable: Path | None) -> str:
     if executable is None:
-        return "unknown"
+        located = shutil.which("firefox")
+        if located is None:
+            return "unknown"
+        executable = Path(located)
     try:
         result = subprocess.run([str(executable), "--version"], check=False, capture_output=True, text=True, timeout=5)
         output = (result.stdout or result.stderr).strip().splitlines()

@@ -1,5 +1,10 @@
+from pathlib import Path
+
+import pytest
+
 from tzMCP.gui_bits.config_manager import Config, ConfigManager
 from tzMCP.paths import (
+    appliance_browser_dir,
     ca_dir,
     config_dir,
     data_dir,
@@ -10,6 +15,16 @@ from tzMCP.paths import (
     runtime_dir,
     sessions_dir,
 )
+
+
+def test_appliance_firefox_profile_uses_snap_data_and_validates_id(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    session_id = "20261016T190000Z-a1b2c3d4"
+    assert appliance_browser_dir(session_id) == (
+        tmp_path / "snap" / "firefox" / "common" / "tzmcp-profiles" / session_id
+    )
+    with pytest.raises(ValueError):
+        appliance_browser_dir("../escape")
 
 
 def test_runtime_paths_use_configured_data_directory(tmp_path, monkeypatch):

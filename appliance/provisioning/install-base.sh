@@ -4,8 +4,11 @@ set -eu
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
-    xfce4 lightdm snapd libnss3-tools python3.12-venv \
-    python3-pip ca-certificates curl sudo util-linux
+    xfce4 xfce4-terminal lightdm lightdm-gtk-greeter \
+    xserver-xorg-core xserver-xorg-input-libinput xserver-xorg-video-vmware \
+    snapd libnss3-tools python3.12-venv python3-tk \
+    virtualbox-guest-utils virtualbox-guest-x11 \
+    python3-pip ca-certificates curl sudo util-linux cloud-guest-utils
 systemctl set-default graphical.target
 systemctl enable lightdm
 echo "/usr/sbin/lightdm" > /etc/X11/default-display-manager

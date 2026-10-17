@@ -14,6 +14,15 @@ variable "vm_name" {
   default = "tzMCP-appliance"
 }
 
+variable "appliance_version" {
+  type    = string
+  default = "development"
+  validation {
+    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$", var.appliance_version))
+    error_message = "Appliance version must be a 1-64 character release label using letters, digits, dot, underscore, plus, or hyphen."
+  }
+}
+
 variable "build_username" {
   type    = string
   default = "tzmcp-build"

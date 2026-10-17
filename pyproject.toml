@@ -15,7 +15,9 @@ dependencies = [
     "filetype==1.2.0",
     "mitmproxy==12.2.2",
     "Pillow==12.3.0",
+    "psutil==7.0.0",
     "PyYAML==6.0.2",
+    "requests==2.33.0",
     "watchdog==6.0.0",
 ]
 [[project.authors]]

@@ -17,6 +17,9 @@ For installation, first capture, export, recovery, and security-boundary
 details, see [the appliance guide](docs/appliance.md). The native GUI and CLI
 instructions below are developer facilities for working on tzMCP itself.
 
+Maintainers building an appliance should follow the
+[build and offline verification procedure](docs/appliance-build.md).
+
 It is secure-by-default, lightweight, and designed to be cross-platform and user-friendly.
 
 ---

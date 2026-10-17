@@ -1,4 +1,6 @@
+import errno
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -266,6 +268,25 @@ def test_atomic_save_collision_suffix(isolated_config):
     smu.atomic_save(b"second", target, 6)
     assert (cfg.save_dir / "out.txt").read_bytes() == b"first"
     assert (cfg.save_dir / "out_1.txt").read_bytes() == b"second"
+
+
+def test_atomic_save_disk_full_removes_partial_file(tmp_path, monkeypatch):
+    target = tmp_path / "capture.png"
+    target.write_bytes(b"previous capture")
+    partial = tmp_path / "temporary-capture"
+    partial.write_bytes(b"partial")
+    handle = Mock(name=str(partial))
+    handle.name = str(partial)
+    handle.write.side_effect = OSError(errno.ENOSPC, "No space left on device")
+    temporary = Mock()
+    temporary.__enter__ = Mock(return_value=handle)
+    temporary.__exit__ = Mock(return_value=False)
+    monkeypatch.setattr(smu, "NamedTemporaryFile", Mock(return_value=temporary))
+
+    smu.atomic_save(b"new capture", target, 11)
+
+    assert target.read_bytes() == b"previous capture"
+    assert list(tmp_path.iterdir()) == [target]
 
 
 # ---- cleanup_temp_file ----------------------------------------------------
