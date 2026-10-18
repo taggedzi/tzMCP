@@ -63,7 +63,8 @@ are copied into the session and cannot change during capture.
 After Firefox and the proxy have stopped, select **Export Session**. The
 completed archive is copied through the controlled `tzmcp-export` share into
 the selected host folder. If copying fails, the completed local archive stays
-inside the VM and can be retried.
+inside the VM. The session remains awaiting export, including after a GUI or
+VM restart, and **Export Session** retries publication of that archive.
 
 The root helper accepts only session names such as
 `20261018T120000Z-abcdef12.zip`. It opens the handoff directories without
@@ -90,6 +91,18 @@ guest paths.
 If the GUI or VM stops unexpectedly, reopen tzMCP. It will preserve captured
 files, recover the active session as `INTERRUPTED`, and offer it for export
 only after verified browser and proxy processes have stopped and exited.
+Ending a session releases the active-session pointer and lock. Those files
+track the live capture. Sessions that still need export are discovered from
+each session directory's `state.json`.
+
+Reopening tzMCP lists every `ENDED` or `INTERRUPTED` session under **Awaiting
+export**, oldest session ID first. Choose one and export it. The other
+sessions stay in the list. Closing the GUI before export leaves those sessions
+on the list for the next startup. A session moves off the list when **Export
+Session** publishes its archive. An exported session does not block the next
+capture. When several sessions are waiting, export each one before starting
+another capture.
+
 A second GUI cannot recover a session while its original GUI is still alive.
 If ownership cannot be verified or a process will not stop, recovery blocks
 export and preserves the session and Firefox profile. Close the original GUI

@@ -125,7 +125,7 @@ See the [settings guide](docs/CONFIG_TAB_GUIDE.md) for examples and the [technic
 1. After **Stop**, select **Export Session**.
 2. On your Windows computer, open the export folder. Its default location is `Documents\tzMCP Exports` under your user account.
 
-Open the ZIP and extract it into a new folder before reviewing the files. Export the finished or recovered session before starting another one.
+Open the ZIP and extract it into a new folder before reviewing the files. Export each finished or recovered session before starting another one.
 
 ```text
 <session-id>.zip
@@ -139,7 +139,9 @@ Open the ZIP and extract it into a new folder before reviewing the files. Export
 
 The export excludes the managed browser profile and the proxy's certificate private key. Captured content is kept as received; it can still contain private data. Log cleanup removes some known sensitive patterns, but it is not a guarantee that an archive is safe to share.
 
-If copying to Windows fails, the completed local archive stays inside the VM. Check the folder and available disk space, then retry **Export Session**. Export copies the results; it does not erase the original captures inside the VM.
+If copying to Windows fails, the completed local archive stays inside the VM and the session remains in **Awaiting export**. Check the folder and available disk space, then retry **Export Session**. This retry still works after you reopen tzMCP or restart the VM. Export copies the results and keeps the original captures inside the VM.
+
+Sessions stay in **Awaiting export** after **Stop**, after an interrupted shutdown, and after you close tzMCP before export. Reopen tzMCP and they are listed again, oldest session first. Select a session, export it, and repeat for each remaining session. An exported session leaves the list, and the next capture can start once the list is empty.
 
 ## When something goes wrong
 
@@ -155,7 +157,7 @@ Use the first action for your symptom, then check **Activity** for the result.
 | Firefox shows certificate errors | Stop the session and check Activity. Use managed Firefox inside the VM; do not install a certificate on Windows to fix this. |
 | “No space left on device” | Free space inside the guest before retrying capture or export. Do not delete the session you need. |
 | Export fails | Check host and guest free space and the configured Windows export folder, then retry. |
-| The app or VM crashed | Reopen tzMCP; it can recover the active session as **INTERRUPTED** for export. |
+| The app or VM crashed, or you closed it before export | Reopen tzMCP. The interrupted session and any earlier sessions that still need export appear under **Awaiting export**. Export each one. |
 
 Saved captures and the appliance's rules persist across VM reboots. The managed Firefox profile is removed after normal session cleanup. Profile deletion is not secure disk erasure, and a crash can leave temporary data behind.
 

@@ -29,6 +29,7 @@ class BrowserTab(ttk.Frame):
         self.config = config
         self.persistent_config_path = Path(persistent_config_path) if persistent_config_path else None
         self.session: SessionRecord | None = None
+        self.pending_sessions: list[SessionRecord] = []
         self.firefox_session: FirefoxSession | None = None
         self.export_service = ExportService(self.session_manager.storage) if self.session_manager else None
 
@@ -80,6 +81,20 @@ class BrowserTab(ttk.Frame):
         if appliance_mode:
             self.session_summary = ttk.Label(proxy_frame, text="No capture session.")
             self.session_summary.grid(row=1, column=0, columnspan=3, sticky="w", pady=(8, 0))
+            self.pending_frame = ttk.Frame(proxy_frame)
+            self.pending_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+            ttk.Label(self.pending_frame, text="Awaiting export:").grid(row=0, column=0, sticky="w")
+            self.pending_session_id = tk.StringVar()
+            self.pending_menu = ttk.Combobox(
+                self.pending_frame,
+                textvariable=self.pending_session_id,
+                state="disabled",
+                width=30,
+            )
+            self.pending_menu.grid(row=0, column=1, sticky="ew", padx=(8, 0))
+            self.pending_menu.bind("<<ComboboxSelected>>", self._on_pending_selected)
+            self.pending_frame.columnconfigure(1, weight=1)
+            self.pending_frame.grid_remove()
             self.after(2000, self._refresh_session_summary)
 
         # Browser management
@@ -158,13 +173,94 @@ class BrowserTab(ttk.Frame):
 
     def restore_recovered_session(self, record: SessionRecord) -> None:
         """Expose a recovered session for export before another capture starts."""
-        self.session = record
-        if record.state in (SessionState.ENDED, SessionState.INTERRUPTED):
+        self.restore_pending_sessions([record])
+
+    def restore_pending_sessions(self, records: list[SessionRecord]) -> None:
+        """Offer every ended or interrupted session for export, oldest first."""
+        ordered = sorted(records, key=lambda record: record.session_id)
+        self.pending_sessions = ordered
+        self.session = ordered[0] if ordered else None
+        self._sync_pending_selector()
+        if not ordered:
+            self._update_launch_state()
+            return
+        if len(ordered) == 1:
+            record = ordered[0]
             state = "interrupted" if record.state is SessionState.INTERRUPTED else "ended"
             self.proxy_state.config(
                 text=f"Recovered {state} session. Export it before starting another session."
             )
             self._append_activity(f"Recovered {state} session {record.session_id} for export.")
+        else:
+            listed = ", ".join(f"{record.session_id} ({record.state})" for record in ordered)
+            self.proxy_state.config(
+                text=(
+                    f"{len(ordered)} sessions await export. "
+                    f"Selected oldest session {ordered[0].session_id}. "
+                    "Export each session before starting another."
+                )
+            )
+            self._append_activity(f"Sessions awaiting export, oldest first: {listed}.")
+        self._update_launch_state()
+
+    def _track_pending_session(self, record: SessionRecord) -> None:
+        """Remember a finished session without keeping the active-session lock."""
+        if record.state not in (SessionState.ENDED, SessionState.INTERRUPTED):
+            return
+        pending = [
+            item for item in getattr(self, "pending_sessions", [])
+            if item.session_id != record.session_id
+        ]
+        pending.append(record)
+        pending.sort(key=lambda item: item.session_id)
+        self.pending_sessions = pending
+        self._sync_pending_selector()
+
+    def _sync_pending_selector(self) -> None:
+        menu = getattr(self, "pending_menu", None)
+        frame = getattr(self, "pending_frame", None)
+        if menu is None or frame is None:
+            return
+        pending = [
+            record for record in getattr(self, "pending_sessions", [])
+            if record.state in (SessionState.ENDED, SessionState.INTERRUPTED)
+        ]
+        if not pending:
+            menu["values"] = ()
+            if hasattr(self, "pending_session_id"):
+                self.pending_session_id.set("")
+            frame.grid_remove()
+            return
+        menu["values"] = [record.session_id for record in pending]
+        selected = self.session.session_id if self.session is not None else pending[0].session_id
+        if selected not in menu["values"]:
+            selected = pending[0].session_id
+        self.pending_session_id.set(selected)
+        frame.grid()
+
+    def _on_pending_selected(self, _event=None) -> None:
+        if not hasattr(self, "pending_session_id"):
+            return
+        session_id = self.pending_session_id.get()
+        record = next(
+            (item for item in getattr(self, "pending_sessions", []) if item.session_id == session_id),
+            None,
+        )
+        if record is None:
+            return
+        process = getattr(self.proxy_controller, "process", None)
+        if process is not None and process.poll() is None:
+            return
+        self.session = record
+        state = "interrupted" if record.state is SessionState.INTERRUPTED else "ended"
+        count = len(self.pending_sessions)
+        if count > 1:
+            self.proxy_state.config(
+                text=(
+                    f"{count} sessions await export. Selected {record.session_id} ({state}). "
+                    "Export each session before starting another."
+                )
+            )
         self._update_launch_state()
 
     def _append_activity(self, line, color="blue"):
@@ -177,6 +273,18 @@ class BrowserTab(ttk.Frame):
             if self.session_manager is not None:
                 if self.config is None:
                     raise RuntimeError("Cannot start a session without validated configuration")
+                waiting = self.session_manager.list_pending_exports()
+                if waiting:
+                    self.pending_sessions = waiting
+                    if self.session is None or all(
+                        item.session_id != self.session.session_id for item in waiting
+                    ):
+                        self.session = waiting[0]
+                    self._sync_pending_selector()
+                    names = ", ".join(record.session_id for record in waiting)
+                    raise RuntimeError(
+                        "Export sessions awaiting export before starting another capture: " + names
+                    )
                 created_session = self.session_manager.create_session(self.config)
                 self.session = created_session
                 self.proxy_controller.config_path = (
@@ -208,6 +316,7 @@ class BrowserTab(ttk.Frame):
                     if self.proxy_controller.process is not None:
                         self.proxy_controller.stop_proxy()
                     self.session = self.session_manager.transition(created_session.session_id, SessionState.INTERRUPTED)
+                    self._track_pending_session(self.session)
                 except Exception:  # preserve the original startup error
                     log_gui.exception("Could not mark the failed startup session interrupted.")
                 self._restore_persistent_proxy_config()
@@ -217,6 +326,7 @@ class BrowserTab(ttk.Frame):
             if self.status_bar:
                 self.status_bar.set_state("error")
             self._append_activity(f"Error starting proxy: {exc}", "red")
+            self._update_launch_state()
 
     def _stop_proxy(self, interrupted=False):
         try:
@@ -232,13 +342,26 @@ class BrowserTab(ttk.Frame):
             if self.session_manager is not None and self.session is not None:
                 target = SessionState.INTERRUPTED if firefox_error or interrupted else SessionState.ENDED
                 self.session = self.session_manager.transition(self.session.session_id, target)
+                self._track_pending_session(self.session)
                 self._restore_persistent_proxy_config()
             self.start_btn.config(state="normal")
             self.stop_btn.config(state="disabled")
-            self.proxy_state.config(text=(
-                "Session interrupted. Export the preserved captures."
-                if interrupted else "Stopped — start this before launching a browser."
-            ))
+            pending_count = sum(
+                1 for record in getattr(self, "pending_sessions", [])
+                if record.state in (SessionState.ENDED, SessionState.INTERRUPTED)
+            )
+            if interrupted:
+                status = "Session interrupted. Export the preserved captures."
+            elif pending_count > 1:
+                status = (
+                    f"Session ended. {pending_count} sessions await export. "
+                    "Export each one before starting another."
+                )
+            elif pending_count == 1:
+                status = "Session ended. Export it before starting another session."
+            else:
+                status = "Stopped — start this before launching a browser."
+            self.proxy_state.config(text=status)
             if self.status_bar:
                 self.status_bar.set_state("stopped")
             self._append_activity("Proxy stopped successfully.")
@@ -267,6 +390,10 @@ class BrowserTab(ttk.Frame):
             record = self.session_manager.get(self.session.session_id)
             if record.state in (SessionState.NEW, SessionState.RUNNING):
                 self.session = self.session_manager.transition(record.session_id, SessionState.INTERRUPTED)
+            if self.session is not None and self.session.state in (
+                SessionState.ENDED, SessionState.INTERRUPTED
+            ):
+                self._track_pending_session(self.session)
             self._restore_persistent_proxy_config()
 
     def _update_launch_state(self):
@@ -278,14 +405,23 @@ class BrowserTab(ttk.Frame):
         managed_launched = is_appliance_mode() and self.__dict__.get("firefox_session") is not None
         allowed = proxy_running and not managed_launched and (is_appliance_mode() or self.safe_browser_acknowledged.get())
         self.launch_btn.config(state="normal" if allowed else "disabled")
-        needs_export = self.session is not None and self.session.state in (
-            SessionState.ENDED, SessionState.INTERRUPTED
+        needs_export = any(
+            record.state in (SessionState.ENDED, SessionState.INTERRUPTED)
+            for record in getattr(self, "pending_sessions", [])
+        ) or (
+            self.session is not None and self.session.state in (
+                SessionState.ENDED, SessionState.INTERRUPTED
+            )
         )
         active_session = self.session is not None and self.session.state in (SessionState.NEW, SessionState.RUNNING)
         self.start_btn.config(state="disabled" if proxy_running or needs_export or active_session else "normal")
         self.stop_btn.config(state="normal" if proxy_running or active_session else "disabled")
         if hasattr(self, "export_btn"):
             self.export_btn.config(state="normal" if needs_export and not proxy_running else "disabled")
+        pending_menu = getattr(self, "pending_menu", None)
+        if pending_menu is not None:
+            selectable = needs_export and not proxy_running
+            pending_menu.config(state="readonly" if selectable else "disabled")
 
     def _load_browser_paths(self):
         if CONFIG_PATH.exists():
@@ -456,10 +592,26 @@ class BrowserTab(ttk.Frame):
             firefox_path = self.firefox_session.executable if self.firefox_session else None
             result = self.export_service.create_local_archive(self.session, collect_versions(firefox_path))
             self.export_service.publish(result)
-            self.session = self.session_manager.complete_export(
+            exported = self.session_manager.complete_export(
                 self.session.session_id, result.archive_path.name, result.size, result.sha256
             )
-            self._append_activity(f"Exported session {self.session.session_id}.")
+            self.session = exported
+            self.pending_sessions = [
+                item for item in getattr(self, "pending_sessions", [])
+                if item.session_id != exported.session_id
+                and item.state in (SessionState.ENDED, SessionState.INTERRUPTED)
+            ]
+            if self.pending_sessions:
+                self.session = self.pending_sessions[0]
+                self.proxy_state.config(
+                    text=(
+                        f"Exported {exported.session_id}. "
+                        f"{len(self.pending_sessions)} session(s) still await export. "
+                        f"Selected {self.session.session_id}."
+                    )
+                )
+            self._sync_pending_selector()
+            self._append_activity(f"Exported session {exported.session_id}.")
             self._update_launch_state()
         except Exception as exc:  # pylint: disable=broad-exception-caught
             log_gui.exception("Could not export session; the local archive remains available for retry.")

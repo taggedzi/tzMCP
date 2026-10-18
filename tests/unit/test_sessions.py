@@ -294,6 +294,113 @@ def test_corrupt_active_state_is_preserved_for_recovery(tmp_path):
     assert manager.lock_path.exists()
 
 
+def test_ended_sessions_remain_pending_after_the_active_lock_is_released(tmp_path, monkeypatch):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    ids = iter(["20261016T000000Z-00000002", "20261016T000000Z-00000001"])
+    monkeypatch.setattr(manager, "_new_id", lambda: next(ids))
+    newer = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(newer.session_id, SessionState.INTERRUPTED)
+    older = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(older.session_id, SessionState.RUNNING)
+    manager.transition(older.session_id, SessionState.ENDED)
+    (manager.storage.root / "notes").mkdir()
+    (manager.storage.root / "20261016T000000Z-00000003").mkdir()
+    assert not manager.active_path.exists()
+    assert not manager.lock_path.exists()
+
+    restarted = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    pending = restarted.list_pending_exports()
+
+    assert [(record.session_id, record.state) for record in pending] == [
+        (older.session_id, SessionState.ENDED),
+        (newer.session_id, SessionState.INTERRUPTED),
+    ]
+    assert not restarted.active_path.exists()
+    assert not restarted.lock_path.exists()
+    assert restarted.recover_active() is None
+    assert [record.session_id for record in restarted.list_pending_exports()] == [
+        older.session_id,
+        newer.session_id,
+    ]
+
+
+def test_recovered_session_stays_discoverable_after_restart(tmp_path, monkeypatch):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(record.session_id, SessionState.RUNNING)
+    manager.record_process(record.session_id, "proxy", ProcessIdentity(42, "/proxy", 123, "owner"))
+    monkeypatch.setattr("tzMCP.sessions.manager.stop_owned_process_tree", lambda identity: None)
+    capture = manager.storage.session_dir(record.session_id) / "capture" / "keep.bin"
+    capture.write_bytes(b"evidence")
+
+    recovered = manager.recover_active()
+    assert recovered.state is SessionState.INTERRUPTED
+    assert not manager.active_path.exists()
+
+    restarted = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    pending = restarted.list_pending_exports()
+    assert [item.session_id for item in pending] == [record.session_id]
+    assert pending[0].state is SessionState.INTERRUPTED
+    assert capture.read_bytes() == b"evidence"
+    assert not restarted.active_path.exists()
+
+
+def test_exported_session_is_omitted_from_pending_discovery(tmp_path):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(record.session_id, SessionState.INTERRUPTED)
+    assert len(manager.list_pending_exports()) == 1
+
+    manager.complete_export(record.session_id, f"{record.session_id}.zip", 4, "ab" * 32)
+
+    assert manager.list_pending_exports() == []
+    follow_up = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    assert follow_up.state is SessionState.NEW
+    assert manager.active_path.exists()
+
+
+def test_unreadable_pending_state_is_not_skipped(tmp_path):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(record.session_id, SessionState.INTERRUPTED)
+    state_path = manager.storage.state_path(record.session_id)
+    state_path.write_text("{", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=record.session_id):
+        manager.list_pending_exports()
+
+    assert state_path.read_text(encoding="utf-8") == "{"
+    assert not manager.active_path.exists()
+
+
+def test_mismatched_session_identity_fails_discovery(tmp_path):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(record.session_id, SessionState.INTERRUPTED)
+    state_path = manager.storage.state_path(record.session_id)
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload["session_id"] = "20261016T000000Z-00000099"
+    state_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="does not match"):
+        manager.list_pending_exports()
+
+
+def test_symlinked_session_directory_fails_discovery(tmp_path):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(record.session_id, SessionState.INTERRUPTED)
+    link = manager.storage.root / "20261016T000000Z-00000009"
+    try:
+        link.symlink_to(tmp_path / "outside", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks unavailable")
+
+    with pytest.raises(RuntimeError, match="00000009"):
+        manager.list_pending_exports()
+    assert manager.get(record.session_id).state is SessionState.INTERRUPTED
+
+
 @pytest.mark.parametrize("value", ["../x", "", "20260723T184512Z-xyz", "2026-07-23"])
 def test_session_ids_are_strict(value):
     with pytest.raises(ValueError):

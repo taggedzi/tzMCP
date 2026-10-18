@@ -115,6 +115,36 @@ class SessionManager:
             self._count_capture_files(record)
         return record
 
+    def list_pending_exports(self) -> list[SessionRecord]:
+        """Return ended and interrupted sessions, oldest session ID first.
+
+        This reads durable session state. It does not use or recreate the
+        active-session pointer or exclusive lock.
+        """
+        try:
+            session_ids = self.storage.list_session_ids()
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"Session discovery failed: {exc}") from exc
+        pending: list[SessionRecord] = []
+        for session_id in session_ids:
+            state_path = self.storage.state_path(session_id)
+            if state_path.is_symlink() or (state_path.exists() and not state_path.is_file()):
+                raise RuntimeError(f"Session {session_id} state path is not a regular file")
+            if not state_path.is_file():
+                continue
+            try:
+                record = self.storage.read_state(session_id)
+            except (OSError, ValueError, TypeError) as exc:
+                raise RuntimeError(
+                    f"Session {session_id} is awaiting inspection but its state could not be read: {exc}"
+                ) from exc
+            if record.session_id != session_id:
+                raise RuntimeError(f"Session {session_id} state does not match its directory")
+            if record.state in (SessionState.ENDED, SessionState.INTERRUPTED):
+                pending.append(record)
+        pending.sort(key=lambda record: record.session_id)
+        return pending
+
     def transition(self, session_id: str, state: SessionState) -> SessionRecord:
         record = self.get(session_id)
         record.transition(state)
