@@ -50,7 +50,7 @@ class MainApp(tk.Tk):
             if recovered is not None:
                 log_gui.warning("Recovered interrupted session %s", recovered.session_id)
         except Exception as exc:
-            recovery_error = str(exc)
+            recovery_error = f"{type(exc).__name__}: {exc}".rstrip()
             log_gui.exception("Could not recover the previous capture session; manual attention is required.")
         self.proxy_controller = ProxyController(
             proxy_executable_path=str(Path(__file__).parent / "save_media.py"),
@@ -65,12 +65,18 @@ class MainApp(tk.Tk):
         start_gui_log_server(self.gui_queue)
         
         self.build_ui()
-        if recovery_error:
+        if recovery_error is not None:
             self.browser_tab.recovery_error = recovery_error
             self.browser_tab._update_launch_state()
             self.browser_tab.proxy_state.config(text=f"Recovery blocked: {recovery_error}")
             from tkinter import messagebox
-            messagebox.showerror("Session recovery blocked", recovery_error)
+            messagebox.showerror(
+                "Session recovery blocked",
+                f"Could not recover the previous capture session: {recovery_error}\n\n"
+                "Capture controls are disabled. Close any previous tzMCP instance, "
+                "then review the recovery traceback in the logs before retrying. "
+                "Keep the previous session files for diagnosis.",
+            )
         if recovered is not None:
             self.browser_tab.restore_recovered_session(recovered)
         # ensure we intercept window-close
