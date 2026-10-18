@@ -37,7 +37,7 @@ def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outc
     for name in ("clean_old_profiles", "clean_old_logs", "start_gui_log_server"):
         monkeypatch.setattr(gui, name, Mock())
     monkeypatch.setattr(gui, "ConfigManager", Mock(return_value=SimpleNamespace(
-        load_config=lambda: SimpleNamespace(proxy_port=8080)
+        load_config=lambda: SimpleNamespace(proxy_port=8080), save_config=Mock()
     )))
     session_root = tmp_path / "sessions"
     runtime_root = tmp_path / "runtime"
@@ -98,6 +98,62 @@ def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outc
         else:
             tab.restore_recovered_session.assert_called_once_with(outcome)
 
+@pytest.mark.parametrize("existing_config", [False, True])
+def test_native_start_persists_missing_defaults_without_rewriting_existing_config(
+    monkeypatch, tmp_path, existing_config
+):
+    from tzMCP.proxy_runtime import ProxyLaunchSpec, build_proxy_command
+
+    monkeypatch.setattr(log_config, "setup_logging", lambda: None)
+    import tzMCP.gui as gui
+
+    monkeypatch.delenv("TZMCP_APPLIANCE", raising=False)
+    monkeypatch.setattr(gui.tk.Tk, "__init__", lambda self: None)
+    monkeypatch.setattr(gui.MainApp, "title", lambda *_: None)
+    monkeypatch.setattr(gui.MainApp, "protocol", lambda *_: None)
+    for name in ("config_dir", "profiles_dir", "logs_dir"):
+        monkeypatch.setattr(gui, name, lambda name=name: tmp_path / name)
+    for name in ("clean_old_profiles", "clean_old_logs", "start_gui_log_server"):
+        monkeypatch.setattr(gui, name, Mock())
+    config_path = tmp_path / "config_dir" / "media_proxy_config.yaml"
+    if existing_config:
+        config_path.parent.mkdir()
+        original = b"# Keep user formatting\nproxy_port: 9191\nauto_reload_config: false\n"
+        config_path.write_bytes(original)
+    else:
+        assert not config_path.exists()
+
+    def build_ui(app):
+        tab = BrowserTab.__new__(BrowserTab)
+        tab.proxy_controller = app.proxy_controller
+        tab.session_manager = app.session_manager
+        tab.session = None
+        tab.status_bar = None
+        tab.activity_logger = None
+        tab._update_launch_state = Mock()
+        for name in ("start_btn", "stop_btn", "proxy_state"):
+            setattr(tab, name, Mock())
+        app.browser_tab = tab
+
+    monkeypatch.setattr(gui.MainApp, "build_ui", build_ui)
+    app = gui.MainApp()
+    commands = []
+
+    def start_proxy():
+        commands.append(build_proxy_command(
+            ProxyLaunchSpec(app.proxy_controller.config_path, app.proxy_controller.proxy_port),
+            tmp_path / "addon.py", tmp_path / "mitmdump.exe",
+        ))
+
+    monkeypatch.setattr(app.proxy_controller, "start_proxy", start_proxy)
+    app.browser_tab._start_proxy()
+    assert len(commands) == 1
+    assert app.proxy_controller.config_path == config_path.resolve()
+    loaded = gui.ConfigManager(config_path).load_config()
+    assert loaded.save_dir == app.config.save_dir
+    assert loaded.proxy_port == (9191 if existing_config else 8888)
+    if existing_config:
+        assert config_path.read_bytes() == original
 
 
 def test_gui_module_invokes_main_when_run_as_a_module():
