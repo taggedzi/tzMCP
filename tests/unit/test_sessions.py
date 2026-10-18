@@ -61,10 +61,12 @@ def test_only_one_active_session_is_allowed(tmp_path):
         manager.create_session(Config(save_dir=tmp_path / "unused"))
 
 
-def test_recovery_is_idempotent_and_preserves_capture(tmp_path):
+def test_recovery_is_idempotent_and_preserves_capture(tmp_path, monkeypatch):
     manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
     record = manager.create_session(Config(save_dir=tmp_path / "unused"))
     manager.transition(record.session_id, SessionState.RUNNING)
+    manager.record_process(record.session_id, "proxy", ProcessIdentity(42, "/proxy", 123, "owner"))
+    monkeypatch.setattr("tzMCP.sessions.manager.stop_owned_process_tree", lambda identity: None)
     capture = tmp_path / "sessions" / record.session_id / "capture" / "keep.bin"
     capture.write_bytes(b"evidence")
 
@@ -75,6 +77,109 @@ def test_recovery_is_idempotent_and_preserves_capture(tmp_path):
     assert recovered.capture_bytes == len(b"evidence")
     assert again is None
     assert capture.read_bytes() == b"evidence"
+
+
+def test_legacy_running_session_without_proxy_identity_requires_manual_attention(tmp_path):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(record.session_id, SessionState.RUNNING)
+    with pytest.raises(RuntimeError, match="no recorded proxy identity"):
+        manager.recover_active()
+    assert manager.get(record.session_id).state is SessionState.RUNNING
+    assert manager.active_path.exists()
+
+
+def test_second_gui_cannot_recover_a_live_owner(tmp_path):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    second = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    with pytest.raises(RuntimeError, match="Another tzMCP GUI"):
+        second.recover_active()
+    assert manager.get(record.session_id).state is SessionState.NEW
+    assert manager.active_path.exists()
+    # Losing the GUI releases its OS lock, while the durable marker survives.
+    manager._release_owner()
+    assert second.recover_active().state is SessionState.INTERRUPTED
+
+
+def test_recovery_waits_for_processes_before_counting_or_releasing(tmp_path, monkeypatch):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    identity = ProcessIdentity(42, str(tmp_path / "proxy"), 123.0, "tzmcp")
+    manager.record_process(record.session_id, "proxy", identity)
+    capture = manager.storage.session_dir(record.session_id) / "capture" / "last.bin"
+
+    def stop(saved):
+        assert saved == identity
+        assert manager.get(record.session_id).state is SessionState.NEW
+        assert manager.active_path.exists()
+        capture.write_bytes(b"last write before exit")
+
+    monkeypatch.setattr("tzMCP.sessions.manager.stop_owned_process_tree", stop)
+    recovered = manager.recover_active()
+    assert recovered.capture_bytes == len(b"last write before exit")
+    assert not manager.active_path.exists()
+
+
+def test_failed_recovery_preserves_state_lock_and_profile(tmp_path, monkeypatch):
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.record_process(record.session_id, "proxy", ProcessIdentity(42, "/proxy", 1, "owner"))
+    before = manager.storage.state_path(record.session_id).read_bytes()
+
+    def fail(_identity):
+        raise RuntimeError("termination failed")
+
+    monkeypatch.setattr("tzMCP.sessions.manager.stop_owned_process_tree", fail)
+    with pytest.raises(RuntimeError, match="Recovery blocked for proxy"):
+        manager.recover_active()
+    assert manager.storage.state_path(record.session_id).read_bytes() == before
+    assert manager.active_path.exists()
+    assert manager.lock_path.exists()
+
+
+@pytest.mark.parametrize("proxy_fails", [False, True])
+def test_recovery_cleans_browser_profile_only_after_all_processes_stop(tmp_path, monkeypatch, proxy_fails):
+    from tzMCP.browser.firefox_session import FirefoxSession
+    from tzMCP import paths
+
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    browser_dir = tmp_path / "browser" / record.session_id
+    profile = browser_dir / "profile"
+    profile.mkdir(parents=True)
+    (profile / "cookies.sqlite").write_bytes(b"private profile")
+    capture = manager.storage.session_dir(record.session_id) / "capture" / "keep.bin"
+    capture.write_bytes(b"preserved capture")
+    identity = ProcessIdentity(42, "/firefox", 123, "owner")
+    manager.record_process(record.session_id, "firefox", identity)
+    manager.record_process(record.session_id, "proxy", identity)
+    monkeypatch.setattr(paths, "appliance_browser_dir", lambda sid: browser_dir)
+    events = []
+
+    def stop_browser(browser):
+        events.append("browser")
+        browser.identity = None
+
+    def stop_proxy(saved):
+        assert profile.exists()
+        events.append("proxy")
+        if proxy_fails:
+            raise RuntimeError("proxy still alive")
+
+    monkeypatch.setattr(FirefoxSession, "stop", stop_browser)
+    monkeypatch.setattr("tzMCP.sessions.manager.stop_owned_process_tree", stop_proxy)
+    if proxy_fails:
+        with pytest.raises(RuntimeError, match="proxy still alive"):
+            manager.recover_active()
+        assert profile.exists()
+        assert manager.active_path.exists()
+    else:
+        recovered = manager.recover_active()
+        assert recovered.state is SessionState.INTERRUPTED
+        assert not profile.exists()
+    assert events == ["browser", "proxy"]
+    assert capture.read_bytes() == b"preserved capture"
 
 
 def test_process_identity_is_persisted_only_for_active_sessions(tmp_path):

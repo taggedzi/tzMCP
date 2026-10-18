@@ -8,6 +8,7 @@ from tzMCP.gui_bits.config_manager import Config
 from tzMCP.save_media import MediaSaver
 from tzMCP.sessions.manager import SessionManager
 from tzMCP.sessions.models import SessionState
+from tzMCP.sessions.processes import ProcessIdentity
 
 
 def test_session_manager_assigns_capture_config_to_proxy(
@@ -40,6 +41,8 @@ def test_session_manager_assigns_capture_config_to_proxy(
         stop_proxy=lambda: None,
     )
     tab.persistent_config_path = tmp_path / "persistent.yaml"
+    identity = ProcessIdentity(42, str(tmp_path / "proxy"), 123, "owner")
+    tab.proxy_controller.start_proxy = lambda: tab.proxy_controller.on_process_started(identity)
     tab.session = None
     tab.start_btn = SimpleNamespace(config=lambda **_: None)
     tab.stop_btn = SimpleNamespace(config=lambda **_: None)
@@ -52,6 +55,7 @@ def test_session_manager_assigns_capture_config_to_proxy(
     tab._start_proxy()
 
     assert tab.session.state is SessionState.RUNNING
+    assert tab.session.process_records["proxy"] == identity.to_dict()
     assert tab.proxy_controller.config_path.name == "capture-config.yaml"
     assert tab.proxy_controller.proxy_port == 9191
     monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))

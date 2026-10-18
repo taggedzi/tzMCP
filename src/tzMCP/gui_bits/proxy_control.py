@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Optional
 import threading
+import psutil
+from tzMCP.sessions.processes import ProcessIdentity, stop_owned_process_tree
 from tzMCP.proxy_runtime import ProxyLaunchSpec, build_proxy_command, launch_environment
 
 
@@ -26,6 +28,8 @@ class ProxyController:
         self.log_dir = Path(log_dir).resolve() if log_dir else None
         self.startup_timeout = startup_timeout
         self.proxy_ready = False
+        self.identity = None
+        self.on_process_started = None
 
     # ------------------------------------------------------------------
     # Helpers
@@ -94,9 +98,13 @@ class ProxyController:
             bufsize=1,
             cwd=str(script_path.parent),
             env=env, 
+            start_new_session=True,
         )
-        threading.Thread(target=self._drain_stdout, daemon=True).start()
         try:
+            self.identity = ProcessIdentity.from_process(psutil.Process(self.process.pid))
+            if self.on_process_started is not None:
+                self.on_process_started(self.identity)
+            threading.Thread(target=self._drain_stdout, daemon=True).start()
             self._wait_for_readiness()
         except Exception:
             self.stop_proxy()
@@ -113,13 +121,20 @@ class ProxyController:
     def stop_proxy(self) -> None:
         """Gracefully terminate the mitmdump subprocess."""
         if self.process and self.process.poll() is None:
-            self.process.terminate()
-            try:
+            if self.identity is not None:
+                stop_owned_process_tree(self.identity)
                 self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait()
+            else:
+                # A launch-time identity failure still leaves us with the
+                # original Popen handle, which must be reaped before returning.
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=5)
         self.process = None
+        self.identity = None
         self.proxy_ready = False
 
     def _mirror_stdout(self):

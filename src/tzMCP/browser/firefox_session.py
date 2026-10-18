@@ -9,7 +9,7 @@ from pathlib import Path
 import psutil
 
 from tzMCP.paths import ensure_private_dir
-from tzMCP.sessions.processes import ProcessIdentity, verify_process_identity
+from tzMCP.sessions.processes import ProcessIdentity, verify_process_identity, _session_members
 
 CA_NICKNAME = "tzMCP mitmproxy CA"
 
@@ -97,6 +97,13 @@ class FirefoxSession:
             self.identity = ProcessIdentity.from_process(psutil.Process(self.process.pid))
             return self.identity
         except (OSError, psutil.Error) as exc:
+            if self.process is not None and self.process.poll() is None:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=5)
             self.process = None
             raise FirefoxSessionError(f"Could not launch Firefox: {exc}") from exc
 
@@ -111,7 +118,11 @@ class FirefoxSession:
 
     def stop(self) -> None:
         if self.identity is None:
+            if self.process is not None and self.process.poll() is None:
+                raise FirefoxSessionError("Firefox identity unavailable; profile preserved")
             return
+        if self.identity.owner is None:
+            raise FirefoxSessionError("Firefox owner unavailable; profile preserved")
         roots: dict[int, psutil.Process] = {}
         if verify_process_identity(self.identity):
             process = psutil.Process(self.identity.pid)
@@ -139,31 +150,54 @@ class FirefoxSession:
                 continue
 
         if not roots:
+            if self.process is not None and self.process.poll() is not None:
+                for process in _session_members(self.identity):
+                    roots[process.pid] = process
+            if self.process is None or self.process.poll() is None:
+                try:
+                    psutil.Process(self.identity.pid)
+                except psutil.NoSuchProcess:
+                    for process in _session_members(self.identity):
+                        roots[process.pid] = process
+                else:
+                    raise FirefoxSessionError("Firefox ownership could not be verified; profile preserved")
             # Firefox may already have been closed normally. Do not signal an
             # unrelated process if the recorded launcher PID has since changed.
-            self.process = None
-            self.identity = None
-            return
+            if not roots:
+                self.process = None
+                self.identity = None
+                return
 
         descendants: dict[int, psutil.Process] = {}
         for process in roots.values():
             try:
                 for child in process.children(recursive=True):
                     descendants[child.pid] = child
-            except psutil.Error:
-                continue
+            except psutil.NoSuchProcess:
+                raise FirefoxSessionError("Firefox tree changed during shutdown; retry recovery")
         targets_by_pid = {**descendants, **roots}
         targets = list(targets_by_pid.values())
+        identities = {process.pid: ProcessIdentity.from_process(process) for process in targets}
         for process in targets:
+            identity = identities[process.pid]
+            if identity.owner != self.identity.owner or not verify_process_identity(identity):
+                raise FirefoxSessionError("Firefox tree ownership changed; profile preserved")
             process.terminate()
         _, alive = psutil.wait_procs(targets, timeout=5)
         for child in alive:
+            if not verify_process_identity(identities[child.pid]):
+                raise FirefoxSessionError("Firefox tree identity changed; profile preserved")
             child.kill()
+        _, alive = psutil.wait_procs(alive, timeout=5)
+        if alive:
+            raise FirefoxSessionError("Firefox did not exit; profile preserved")
+        if _session_members(self.identity):
+            raise FirefoxSessionError("Firefox spawned more processes; retry recovery with profile preserved")
         self.process = None
         self.identity = None
 
     def cleanup(self) -> None:
-        if self.process is not None and self.process.poll() is None:
+        if self.identity is not None or (self.process is not None and self.process.poll() is None):
             self.stop()
         if self.profile_dir.exists():
             shutil.rmtree(self.profile_dir)
