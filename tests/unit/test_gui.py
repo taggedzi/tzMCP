@@ -1,12 +1,91 @@
 import ast
+import json
 import logging
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
 
 import tzMCP.gui_bits.browser_tab as browser_tab_module
 from tzMCP.common_utils import log_config
 from tzMCP.gui_bits.browser_tab import BrowserTab
 from tzMCP.sessions.models import SessionRecord, SessionState
+
+
+@pytest.mark.parametrize("outcome", [
+    None,
+    SessionRecord("20261016T000000Z-01234567", state=SessionState.INTERRUPTED),
+    ValueError("malformed session state"),
+    json.JSONDecodeError("invalid JSON", "{", 1),
+    OSError("session state unavailable"),
+    ValueError(),
+])
+def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outcome):
+    # Import only after redirecting logging, so no real runtime files are opened.
+    monkeypatch.setattr(log_config, "setup_logging", lambda: None)
+    import tzMCP.gui as gui
+
+    monkeypatch.setattr(gui.tk.Tk, "__init__", lambda self: None)
+    monkeypatch.setattr(gui.MainApp, "title", lambda *args: None)
+    monkeypatch.setattr(gui.MainApp, "protocol", lambda *args: None)
+    for name in ("config_dir", "profiles_dir", "logs_dir", "ca_dir"):
+        monkeypatch.setattr(gui, name, lambda name=name: tmp_path / name)
+    monkeypatch.setattr(gui, "is_appliance_mode", lambda: False)
+    for name in ("clean_old_profiles", "clean_old_logs", "start_gui_log_server"):
+        monkeypatch.setattr(gui, name, Mock())
+    monkeypatch.setattr(gui, "ConfigManager", Mock(return_value=SimpleNamespace(
+        load_config=lambda: SimpleNamespace(proxy_port=8080)
+    )))
+    session_root = tmp_path / "sessions"
+    runtime_root = tmp_path / "runtime"
+    manager = Mock(wraps=gui.SessionManager(root=session_root, runtime_root=runtime_root))
+    if isinstance(outcome, Exception):
+        manager.recover_active.side_effect = outcome
+    else:
+        manager.recover_active.return_value = outcome
+    monkeypatch.setattr(gui, "SessionManager", Mock(return_value=manager))
+    monkeypatch.setattr(gui, "ProxyController", Mock())
+    tab = BrowserTab.__new__(BrowserTab)
+    for name in ("start_btn", "stop_btn", "launch_btn", "export_btn", "proxy_state"):
+        setattr(tab, name, Mock())
+    tab.restore_recovered_session = Mock()
+    monkeypatch.setattr(gui.MainApp, "build_ui", lambda self: setattr(self, "browser_tab", tab))
+    showerror = Mock()
+    monkeypatch.setattr(browser_tab_module.messagebox, "showerror", showerror)
+    logger = Mock()
+    monkeypatch.setattr(gui, "log_gui", logger)
+    evidence_paths = [
+        session_root / "session.json", session_root / "processes.json",
+        runtime_root / "active-session.json", runtime_root / "active-session.lock",
+    ]
+    for path in evidence_paths:
+        path.write_bytes(b"original evidence")
+    before = {path: path.read_bytes() for path in evidence_paths}
+
+    gui.MainApp()
+
+    manager.recover_active.assert_called_once_with()
+    assert manager.method_calls == [("recover_active", (), {})]
+    assert {path: path.read_bytes() for path in evidence_paths} == before
+    if isinstance(outcome, Exception):
+        assert type(outcome).__name__ in tab.recovery_error
+        assert str(outcome) in tab.recovery_error
+        tab._update_launch_state()  # Later refreshes must also keep capture blocked.
+        for name in ("start_btn", "stop_btn", "launch_btn", "export_btn"):
+            getattr(tab, name).config.assert_called_with(state="disabled")
+        tab.restore_recovered_session.assert_not_called()
+        showerror.assert_called_once()
+        assert tab.recovery_error in showerror.call_args.args[1]
+        assert "review the recovery traceback" in showerror.call_args.args[1]
+        logger.exception.assert_called_once()
+    else:
+        assert "recovery_error" not in tab.__dict__
+        showerror.assert_not_called()
+        if outcome is None:
+            tab.restore_recovered_session.assert_not_called()
+        else:
+            tab.restore_recovered_session.assert_called_once_with(outcome)
 
 
 
