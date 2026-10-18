@@ -19,6 +19,8 @@ Run the narrowest relevant tests first. Run the full suite for shared utilities,
 
 Tests must use temporary directories and mocks rather than real capture data. Do not launch browsers, the GUI, or a live proxy in routine automated tests.
 
+CI runs the full Python suite on Ubuntu 24.04 with Python 3.12/3.13 and on Windows with Python 3.12. Independent appliance checks cover shell sources, wheel construction, and Packer configuration. Keep workflows compatible with the repository policy requiring owner-hosted, SHA-pinned actions; the current workflows use runner tools directly. Production OVA builds and acceptance follow the [maintainer build guide](docs/appliance-build.md).
+
 In the pull request, explain the problem, resulting behavior, tests run, and any remaining limitations. Update the user or technical docs when behavior changes. Review the diff for secrets, private captures, generated images, and unrelated edits before submitting.
 
 ## Security findings

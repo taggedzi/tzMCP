@@ -436,7 +436,9 @@ Full suite and coverage:
 
 Use `tmp_path`, mocks, and the isolation fixtures in `tests/conftest.py`. Never direct tests at real config, logs, cache, profiles, or session evidence. Response integration tests use mocked flows; passing them does not prove a live browser/proxy/VM works. Avoid launching GUI, browsers, or a proxy in routine automated tests.
 
-The unit-test workflow covers Python 3.12/3.13 on Linux and 3.12 on Windows. The appliance source-validation workflow also runs the full Python suite, shell checks, and Packer validation. These checks do not boot an OVA or establish clean-host compatibility.
+The application and host test workflow runs the full Python suite on Ubuntu 24.04 with Python 3.12 (the guest baseline), Ubuntu 24.04 with Python 3.13 (compatibility), and Windows with Python 3.12. Only tests that require Windows installation paths are Windows-only; portable PowerShell tests also run on Linux when PowerShell is available.
+
+The appliance source-validation workflow has independent shell and Packer jobs. It checks provisioning scripts and the installed export/display helpers with ShellCheck, builds a validation wheel, and checks Packer formatting and configuration. Repository policy permits only owner-hosted actions pinned to full commit SHAs, so these workflows bootstrap using runner tools. Packer 1.14.0 is downloaded with a pinned SHA-256 check. These checks do not boot an OVA or establish clean-host compatibility; production builds, offline sanitation, independent disk verification, and manual acceptance remain maintainer tasks.
 
 For documentation edits, check relative links/anchors, fenced code blocks, actual CLI options/defaults, and diagram labels. The SVG assets are editable text with accessibility titles/descriptions and README alt text. Mermaid diagrams render on GitHub; readers without Mermaid support can use the surrounding tables and explanations.
 

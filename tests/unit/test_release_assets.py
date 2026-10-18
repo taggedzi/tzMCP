@@ -35,6 +35,7 @@ def test_checksum_generator_uses_sorted_sha256_entries():
     assert "cannot checksum itself" in script
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Standard VirtualBox installation paths are Windows-only")
 def test_setup_finds_one_standard_installation_without_path(tmp_path):
     shells = [os.environ.get("TZMCP_TEST_POWERSHELL") or shutil.which("pwsh")]
     if os.name == "nt":
