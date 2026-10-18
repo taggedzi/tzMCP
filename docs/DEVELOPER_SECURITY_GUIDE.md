@@ -327,9 +327,9 @@ The allow list includes capture files, session logs, the effective rules, and cu
 
 During capture/log collection, export rejects symlinks, nonregular files, multiply-linked files, and paths outside the export root. This is defensive traversal of a stopped session, not protection against every race with another same-user process. The config snapshot has its own file/symlink checks rather than the full capture-file walker checks.
 
-Log export redacts recognized authorization/cookie headers and selected query keys. Captured bodies are never redacted. These pattern substitutions do not guarantee removal of credentials, personal data, paths, or secrets from all metadata/logs.
+Log export redacts recognized authorization/cookie headers and selected query keys while each log is streamed, so a secret split across reads is still removed. Captured bodies are never redacted. These pattern substitutions do not guarantee removal of credentials, personal data, paths, or secrets from all metadata/logs.
 
-The exporter builds payloads in memory, writes a `.partial` ZIP, then atomically publishes the local archive. Failure removes the partial local ZIP. The whole-archive SHA-256 and size are returned separately; `SHA256SUMS` inside the ZIP lists payload members and does not list itself.
+The exporter streams capture files, logs, and archive hashing in bounded chunks, writes a `.partial` ZIP, then atomically publishes the local archive. Failure removes the partial local ZIP and leaves captures plus any previous archive in place. Small generated metadata may stay in memory. The whole-archive SHA-256 and size are returned separately; `SHA256SUMS` inside the ZIP lists payload members and does not list itself.
 
 ### Verify an extracted archive
 

@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import re
 import subprocess
 from pathlib import Path
 
-from tzMCP.sessions.export import ExportResult, SessionExporter
+from tzMCP.sessions.export import ExportResult, SessionExporter, hash_file_sha256
 from tzMCP.sessions.models import SessionRecord
 from tzMCP.sessions.storage import SessionStorage
 
@@ -29,7 +28,7 @@ class ExportService:
         try:
             existing = self.export_root / f"{record.session_id}.zip"
             if existing.is_file():
-                return ExportResult(existing, hashlib.sha256(existing.read_bytes()).hexdigest(), existing.stat().st_size)
+                return ExportResult(existing, hash_file_sha256(existing), existing.stat().st_size)
             return self.exporter.export(record, self.export_root, versions)
         except Exception as exc:
             raise ExportServiceError(str(exc)) from exc
