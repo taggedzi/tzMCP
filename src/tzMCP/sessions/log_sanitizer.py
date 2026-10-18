@@ -27,6 +27,19 @@ _NON_WS_VALUE = re.compile(rf"(?i)(?:{_LOG_ALTERNATION})\s*[:=]\s*\S")
 _WS = re.compile(r"\s")
 _QUERY_INTRODUCERS = tuple(f"{mark}{key}=" for mark in ("?", "&") for key in _QUERY_KEYS)
 
+
+def _compile_query_prefixes() -> dict[int, tuple[re.Pattern[str], ...]]:
+    """Case-insensitive introducer prefixes, keyed by original character length."""
+    grouped: dict[int, list[re.Pattern[str]]] = {}
+    for intro in _QUERY_INTRODUCERS:
+        for size in range(1, len(intro) + 1):
+            grouped.setdefault(size, []).append(re.compile(rf"(?i){re.escape(intro[:size])}\Z"))
+    return {size: tuple(patterns) for size, patterns in grouped.items()}
+
+
+_QUERY_PREFIXES = _compile_query_prefixes()
+_QUERY_PREFIX_MAX = max(_QUERY_PREFIXES)
+
 SANITIZER_RAM_LIMIT = 64 * 1024
 _KEYWORD_HOLD = 32
 
@@ -60,16 +73,69 @@ def _keyword_hold_len(text: str) -> int:
 
 
 def _query_hold_len(text: str) -> int:
+    """Trailing slice that is a case-insensitive prefix of a query introducer."""
     if not text:
         return 0
-    lower = text.lower()
-    max_size = min(len(lower), max(len(item) for item in _QUERY_INTRODUCERS))
     best = 0
-    for size in range(1, max_size + 1):
-        suffix = lower[-size:]
-        if any(intro.startswith(suffix) for intro in _QUERY_INTRODUCERS):
+    limit = min(len(text), _QUERY_PREFIX_MAX)
+    for size in range(1, limit + 1):
+        suffix = text[-size:]
+        if any(pattern.match(suffix) for pattern in _QUERY_PREFIXES[size]):
             best = size
     return best
+
+
+class _ReplayCursor:
+    """Failed-hold bytes, then the text that followed them.
+
+    Nested keywords push another cursor in front of this one. The unread tail
+    and its suffix stay behind that cursor, in the original order.
+    """
+
+    def __init__(self, spool: tempfile.SpooledTemporaryFile[bytes], suffix: str) -> None:
+        self.spool = spool
+        self.suffix = suffix
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
+        self._spool_done = False
+
+    def close(self) -> None:
+        self.spool.close()
+
+    def position(self) -> int:
+        if self._spool_done:
+            return -len(self.suffix)
+        try:
+            return self.spool.tell()
+        except OSError:
+            return -1
+
+    def read(self, limit: int) -> str:
+        if limit <= 0:
+            return ""
+        if not self._spool_done:
+            raw = self.spool.read(limit)
+            if raw:
+                decoded = self._decoder.decode(raw)
+                if decoded:
+                    return decoded
+                # A multibyte character can straddle this read.
+                for _ in range(3):
+                    more = self.spool.read(1)
+                    if not more:
+                        break
+                    decoded = self._decoder.decode(more)
+                    if decoded:
+                        return decoded
+            self._spool_done = True
+            tail = self._decoder.decode(b"", final=True)
+            if tail:
+                return tail
+        piece = self.suffix[:limit]
+        self.suffix = self.suffix[len(piece) :]
+        return piece
+
+    def exhausted(self) -> bool:
+        return self._spool_done and not self.suffix
 
 
 class _QueryReplacer:
@@ -168,23 +234,21 @@ class _LogReplacer:
         self._mode = "scan"
         self._keyword = ""
         self._spool: tempfile.SpooledTemporaryFile[bytes] | None = None
-        self._replay: tempfile.SpooledTemporaryFile[bytes] | None = None
-        self._replay_decoder: codecs.IncrementalDecoder | None = None
-        self._replay_suffix = ""
+        self._replays: list[_ReplayCursor] = []
         self._after_sep = False
         self._non_crlf_after_sep = False
         self._trailing_start: int | None = None
         self.peak_buffered_chars = 0
 
     def close(self) -> None:
-        replay = self._replay
+        replays = self._replays
         spool = self._spool
-        self._replay = None
+        self._replays = []
         self._spool = None
-        self._replay_decoder = None
-        for handle in (replay, spool):
-            if handle is not None:
-                handle.close()
+        for cursor in replays:
+            cursor.close()
+        if spool is not None:
+            spool.close()
 
     def _spool_ram(self) -> int:
         if self._spool is None:
@@ -194,8 +258,11 @@ class _LogReplacer:
         except OSError:
             return 0
 
+    def _replay_suffix_len(self) -> int:
+        return sum(len(cursor.suffix) for cursor in self._replays)
+
     def _touch(self) -> None:
-        usage = len(self._pending) + len(self._keyword) + len(self._replay_suffix) + self._spool_ram()
+        usage = len(self._pending) + len(self._keyword) + self._replay_suffix_len() + self._spool_ram()
         self.peak_buffered_chars = max(self.peak_buffered_chars, usage)
 
     def iter_feed(self, text: str, final: bool = False) -> Iterator[str]:
@@ -209,10 +276,10 @@ class _LogReplacer:
                 for start in range(0, len(produced), SANITIZER_RAM_LIMIT):
                     yield produced[start : start + SANITIZER_RAM_LIMIT]
                 continue
-            if not incoming and self._replay is None and self._mode == "scan" and not self._pending:
+            if not incoming and not self._replays and self._mode == "scan" and not self._pending:
                 break
             # A keyword or secret value can stay open until the next chunk.
-            if blocked and not incoming and self._replay is None and not final:
+            if blocked and not incoming and not self._replays and not final:
                 break
             after = self._signature(incoming)
             if after == before:
@@ -225,13 +292,8 @@ class _LogReplacer:
             raise RuntimeError("log sanitizer exceeded its step budget")
 
     def _signature(self, incoming: str) -> tuple[object, ...]:
-        replay_pos = None
-        if self._replay is not None:
-            try:
-                replay_pos = self._replay.tell()
-            except OSError:
-                replay_pos = -1
-        return (len(incoming), self._pending, self._mode, replay_pos, self._after_sep, self._keyword)
+        positions = tuple(cursor.position() for cursor in self._replays)
+        return (len(incoming), self._pending, self._mode, positions, self._after_sep, self._keyword)
 
     def _step(self, incoming: str, final: bool) -> tuple[str, str, bool]:
         if self._mode == "drop":
@@ -239,6 +301,19 @@ class _LogReplacer:
                 self._pending = self._drop_text(self._pending)
                 self._touch()
                 return "", incoming, False
+            if self._replays:
+                piece = self._take_replay(SANITIZER_RAM_LIMIT)
+                if piece:
+                    remainder = self._drop_text(piece)
+                    if self._mode == "scan":
+                        # The break character ends the secret. Keep what follows
+                        # ahead of any unread replay.
+                        self._pending = remainder
+                        self._touch()
+                        return "", incoming, False
+                    return "", incoming, False
+                if self._replays:
+                    return "", incoming, True
             if incoming:
                 return "", self._drop_text(incoming), self._mode == "drop"
             if final:
@@ -247,19 +322,27 @@ class _LogReplacer:
             return "", incoming, True
 
         if self._mode == "hold":
+            # An outer replay can contain another keyword. Feed that text through
+            # the open hold before taking new input or closing the record.
+            if self._replays:
+                piece = self._take_replay(SANITIZER_RAM_LIMIT)
+                if piece:
+                    return self._hold_text(piece), incoming, False
+                if self._replays:
+                    return "", incoming, True
             if incoming:
                 piece = incoming[:SANITIZER_RAM_LIMIT]
                 return self._hold_text(piece), incoming[len(piece) :], False
-            if self._replay is not None:
-                self._pull_replay()
-                return "", incoming, False
             if final:
                 return self._hold_eof(), incoming, False
             return "", incoming, True
 
-        if self._replay is not None and len(self._pending) < SANITIZER_RAM_LIMIT:
-            self._pull_replay()
-            if self._pending or self._replay is not None:
+        if self._replays and len(self._pending) < SANITIZER_RAM_LIMIT:
+            piece = self._take_replay(SANITIZER_RAM_LIMIT)
+            if piece:
+                self._pending += piece
+                self._touch()
+            if piece or self._replays:
                 produced, _blocked = self._drain_scan(final=False)
                 return produced, incoming, False
 
@@ -269,11 +352,11 @@ class _LogReplacer:
             incoming = incoming[len(take) :]
             self._pending += take
             self._touch()
-        produced, blocked = self._drain_scan(final=final and not incoming and self._replay is None)
+        produced, blocked = self._drain_scan(final=final and not incoming and not self._replays)
         if self._mode == "scan" and len(self._pending) >= SANITIZER_RAM_LIMIT:
             produced += self._force_full_pending()
             blocked = False
-        done = blocked and not incoming and self._replay is None and self._mode == "scan"
+        done = blocked and not incoming and not self._replays and self._mode == "scan"
         return produced, incoming, done
 
     def _drain_scan(self, final: bool) -> tuple[str, bool]:
@@ -427,17 +510,20 @@ class _LogReplacer:
             raise RuntimeError("log sanitizer replay is missing its hold state")
         first = self._keyword[0]
         rest = self._keyword[1:]
+        if extra:
+            # Keep the unread tail on the spool. A nested keyword must not pin
+            # that tail in RAM beside the next hold buffer.
+            self._spool.write(extra.encode("utf-8"))
         self._spool.seek(0)
-        self._replay = self._spool
+        # A keyword inside this replay must not discard the still-unread tail.
+        self._replays.insert(0, _ReplayCursor(self._spool, ""))
         self._spool = None
-        self._replay_decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
-        self._replay_suffix = extra
         self._keyword = ""
         self._after_sep = False
         self._non_crlf_after_sep = False
         self._trailing_start = None
         self._mode = "scan"
-        self._pending = rest
+        self._pending = rest + self._pending
         self._touch()
         return first
 
@@ -459,27 +545,25 @@ class _LogReplacer:
             spool.close()
             return f"{keyword}: [REDACTED]"
         spool.seek(start)
-        self._replay = spool
-        self._replay_decoder = codecs.getincrementaldecoder("utf-8")(errors="strict")
-        self._replay_suffix = ""
+        self._replays.insert(0, _ReplayCursor(spool, ""))
         return f"{keyword}: [REDACTED]"
 
-    def _pull_replay(self) -> None:
-        if self._replay is None or self._replay_decoder is None:
-            return
-        raw = self._replay.read(SANITIZER_RAM_LIMIT)
-        if raw:
-            self._pending += self._replay_decoder.decode(raw)
-            self._touch()
-            return
-        tail = self._replay_decoder.decode(b"", final=True)
-        extra = self._replay_suffix
-        self._replay.close()
-        self._replay = None
-        self._replay_decoder = None
-        self._replay_suffix = ""
-        self._pending += tail + extra
-        self._touch()
+    def _take_replay(self, limit: int) -> str:
+        parts: list[str] = []
+        remaining = limit
+        while remaining > 0 and self._replays:
+            cursor = self._replays[0]
+            piece = cursor.read(remaining)
+            if piece:
+                parts.append(piece)
+                remaining -= len(piece)
+            if cursor.exhausted():
+                cursor.close()
+                del self._replays[0]
+                continue
+            if not piece:
+                break
+        return "".join(parts)
 
     def _drop_text(self, text: str) -> str:
         carriage = text.find("\r")

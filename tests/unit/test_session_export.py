@@ -166,6 +166,11 @@ def test_streaming_log_sanitizer_matches_full_buffer():
         b"notcookie\n: z",
         b"authorization",
         b"proxy-authorizat",
+        b"proxy-authorization\nx\n",
+        b"set-cookie\nx\n",
+        "?apı_key=SECRET\n".encode(),
+        "?apİ_key=SECRET\n".encode(),
+        "&ſecret=SECRET\n".encode(),
         b"?tok",
         b"?token=",
     ]
@@ -204,6 +209,63 @@ def test_streaming_log_sanitizer_bounds_memory_across_chunk_gaps():
     _assert_bounded_stream(b"cookie:" + gap)
     _assert_bounded_stream(b"cookie:" + b"\n" * (SANITIZER_RAM_LIMIT + 32) + b"secret\n")
     _assert_bounded_stream(b"cookie: " + b"\n" * (SANITIZER_RAM_LIMIT + 32))
+
+
+def _assert_chunked_stream(data: bytes, cuts: tuple[int, ...] = ()) -> None:
+    """Match sanitize_log across chunk sizes and explicit boundary cuts."""
+    expected = sanitize_log(data)
+    parts_list = [[data]]
+    # Small sizes still split multibyte characters. 3-byte steps across a full
+    # RAM-sized gap copy the pending buffer often enough to dominate the suite.
+    for size in (64, 1024, 4096):
+        parts_list.append([data[index : index + size] for index in range(0, len(data), size)])
+    for cut in cuts:
+        if 0 < cut < len(data):
+            parts_list.append([data[:cut], data[cut:]])
+            parts_list.append([data[: cut - 1], data[cut - 1 : cut], data[cut:]])
+    for parts in parts_list:
+        assert _sanitize_stream(data, parts) == expected
+    _assert_bounded_stream(data)
+
+
+def test_streaming_query_unicode_case_holds_at_buffer_boundary():
+    # Dotless ı, capital İ, and long s are case-equivalents under (?i), not str.lower().
+    edge = b"x" * (SANITIZER_RAM_LIMIT - 4)
+    samples = [
+        edge + "?apı_key=SECRET\n".encode(),
+        edge + "?apİ_key=SECRET\n".encode(),
+        edge + "&ſecret=SECRET\n".encode(),
+        edge + "?token=apı_key&ſecret=SECRET\n".encode(),
+    ]
+    for data in samples:
+        secret_at = data.rfind(b"SECRET")
+        assert secret_at > SANITIZER_RAM_LIMIT
+        _assert_chunked_stream(data, cuts=(SANITIZER_RAM_LIMIT - 4, SANITIZER_RAM_LIMIT, secret_at))
+        assert b"SECRET" not in sanitize_log(data)
+
+
+def test_streaming_nested_keyword_replay_keeps_following_records():
+    newline_gap = b"\n" * (SANITIZER_RAM_LIMIT + 100)
+    space_gap = b" " * (SANITIZER_RAM_LIMIT + 100)
+    audit = b"x\nIMPORTANT AUDIT EVENT\n"
+    samples = [
+        b"proxy-authorization" + newline_gap + audit,
+        b"set-cookie" + newline_gap + audit,
+        b"proxy-authorization" + space_gap + audit,
+        b"set-cookie" + space_gap + b"x\nCookie: SECRET\nIMPORTANT AUDIT EVENT\n",
+        b"proxy-authorization" + newline_gap + b"x\nAuthorization: SECRET\nIMPORTANT AUDIT EVENT\n",
+        b"x" * (SANITIZER_RAM_LIMIT - 4)
+        + "?apı_key=SECRET\n".encode()
+        + b"proxy-authorization"
+        + newline_gap
+        + b"set-cookie"
+        + space_gap
+        + "?apİ_key=SECRET&ſecret=HIDDEN\nIMPORTANT AUDIT EVENT\n".encode(),
+    ]
+    for data in samples:
+        assert b"IMPORTANT AUDIT EVENT" in sanitize_log(data)
+        keyword_end = data.find(b"\n") if data.startswith(b"proxy-") or data.startswith(b"set-") else SANITIZER_RAM_LIMIT
+        _assert_chunked_stream(data, cuts=(keyword_end, SANITIZER_RAM_LIMIT, len(data) - 24))
 
 
 def test_export_streams_media_and_archive_hash(monkeypatch, tmp_path):
