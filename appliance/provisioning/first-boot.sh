@@ -42,6 +42,7 @@ resize2fs "$root_device"
 
 install -d -o "$ACCOUNT" -g "$ACCOUNT" -m 700 \
     "$DATA_DIR" "$DATA_DIR/config" "$DATA_DIR/sessions" "$DATA_DIR/runtime" \
+    "$DATA_DIR/browser-profiles" \
     "$DATA_DIR/export-ready" "$DATA_DIR/ca" "$CA_DIR" "$LOG_DIR"
 
 if [ ! -s "$CERT" ] || [ ! -s "$KEY" ]; then

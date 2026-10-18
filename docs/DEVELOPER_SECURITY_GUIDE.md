@@ -254,7 +254,7 @@ Config-file values are validated during load; CLI overrides are applied afterwar
     └── staging/                Reserved working directory
 ```
 
-Snap Firefox needs a confinement-accessible profile location. Managed appliance profiles live at `~/snap/firefox/common/tzmcp-profiles/<session-id>/profile`, outside the session export tree. Do not assume `sessions/<id>/browser/` contains the active Firefox profile.
+Managed appliance Firefox profiles live at `<data-root>/browser-profiles/<session-id>/profile`, outside the session export tree. Do not assume `sessions/<id>/browser/` contains the active Firefox profile.
 
 Native mitmproxy runs without an explicit `confdir` and use mitmproxy's own default configuration directory. Appliance runs explicitly use `<data-root>/ca/mitmproxy`.
 
@@ -459,6 +459,6 @@ Keep generated images, temporary credentials, private keys, and audit output out
 
 The Windows setup wrapper defaults to one CPU, 4,096 MiB RAM, and a 61,440 MiB disk. It supports `-VmBaseFolder`, `-ExportPath`, `-Cpu`, `-MemoryMb`, and disk expansion with `-DiskSizeMb`; shrinking below the base disk is rejected. Check [the appliance guide](appliance.md) for CPU compatibility notes and recovery/export procedures.
 
-Users update the application by importing a newer appliance according to release notes. Ubuntu security updates and Firefox Snap updates continue independently; exported component versions help explain differences between sessions. Preserve needed exports before replacing any VM.
+Users update the application by importing a newer appliance according to release notes. Ubuntu security updates and Mozilla Firefox APT updates continue independently; exported component versions help explain differences between sessions. Preserve needed exports before replacing any VM.
 
 The historical `invoke release` task pushes Git changes/tags and uploads packages; it is not the appliance acceptance procedure. Some legacy cleanup tasks remove broad directory sets. Inspect those tasks before running them and do not use them against evidence or unreviewed paths.

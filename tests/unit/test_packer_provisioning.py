@@ -214,10 +214,11 @@ def test_provisioning_disables_ssh_socket_activation():
     assert "mask ssh.service ssh.socket" in script
 
 
-def test_base_provisioning_installs_firefox_outside_the_apt_transaction():
+def test_base_provisioning_installs_mozilla_firefox_without_snap_runtime():
     script = (ROOT / "appliance" / "provisioning" / "install-base.sh").read_text(encoding="utf-8")
-    apt_line = script.split("apt-get install", 1)[1].split("\n", 4)[0]
-    assert "firefox" not in apt_line
-    assert "snapd" in script
-    assert "snap install firefox" in script
-    assert "Firefox snap installation failed" in script
+    assert "35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3" in script
+    assert "signed-by=/etc/apt/keyrings/packages.mozilla.org.asc" in script
+    assert "Pin: release o=Ubuntu" in script
+    assert "site=packages.mozilla.org" in script
+    assert "apt-get install -y --no-install-recommends firefox" in script
+    assert "apt-get purge -y snapd" in script

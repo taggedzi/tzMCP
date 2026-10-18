@@ -42,10 +42,10 @@ def profiles_dir() -> Path:
 
 
 def appliance_browser_dir(session_id: str) -> Path:
-    """Place a session profile where the confined Firefox snap can read it."""
+    """Keep managed Firefox profiles outside captured session data."""
     from tzMCP.sessions.models import validate_session_id
 
-    return Path.home() / "snap" / "firefox" / "common" / "tzmcp-profiles" / validate_session_id(session_id)
+    return data_dir() / "browser-profiles" / validate_session_id(session_id)
 
 
 def sessions_dir() -> Path:
@@ -80,5 +80,5 @@ def ensure_private_dir(path: Path) -> Path:
 
 def ensure_runtime_dirs() -> None:
     """Create appliance runtime roots without creating session or CA contents."""
-    for path in (sessions_dir(), ca_dir(), runtime_dir(), export_ready_dir()):
+    for path in (sessions_dir(), ca_dir(), runtime_dir(), export_ready_dir(), data_dir() / "browser-profiles"):
         ensure_private_dir(path)

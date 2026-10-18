@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from tzMCP.gui_bits.config_manager import Config, ConfigManager
@@ -17,12 +15,10 @@ from tzMCP.paths import (
 )
 
 
-def test_appliance_firefox_profile_uses_snap_data_and_validates_id(tmp_path, monkeypatch):
-    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+def test_appliance_firefox_profile_uses_private_data_and_validates_id(tmp_path, monkeypatch):
+    monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))
     session_id = "20261016T190000Z-a1b2c3d4"
-    assert appliance_browser_dir(session_id) == (
-        tmp_path / "snap" / "firefox" / "common" / "tzmcp-profiles" / session_id
-    )
+    assert appliance_browser_dir(session_id) == tmp_path / "data" / "browser-profiles" / session_id
     with pytest.raises(ValueError):
         appliance_browser_dir("../escape")
 
@@ -44,7 +40,7 @@ def test_runtime_paths_use_configured_data_directory(tmp_path, monkeypatch):
 def test_runtime_directories_are_private(tmp_path, monkeypatch):
     monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))
     ensure_runtime_dirs()
-    for path in (sessions_dir(), ca_dir(), runtime_dir(), export_ready_dir()):
+    for path in (sessions_dir(), ca_dir(), runtime_dir(), export_ready_dir(), data_dir() / "browser-profiles"):
         assert path.is_dir()
         if path.stat().st_mode & 0o777 != 0o700:
             # Windows does not expose POSIX owner mode semantics.

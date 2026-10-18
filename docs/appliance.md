@@ -8,10 +8,12 @@ This guide describes the supported end-user workflow for a published tzMCP
 appliance on a 64-bit Windows host with VirtualBox 7.1 or newer.
 
 > **Development status:** No production OVA is included in this repository.
-> A verified local candidate is available in `dist/release-20261017k/` on the
-> maintainer machine. It passed import, HTTPS capture/export, and reboot checks
-> on the development host and a second clean Windows 11 PC. It has not been
-> published as a production release.
+> A compact local candidate is available in `dist/appliance-compact-20261018/`
+> on the maintainer machine. It passed sanitization, disk audit, import, and
+> HTTPS image capture/export on the development host. The earlier candidate in
+> `dist/release-20261017k/` also passed reboot checks on a second Windows 11 PC.
+> The compact candidate has not been tested on that second PC or published as a
+> production release.
 
 ## Install
 
@@ -102,8 +104,8 @@ system trust store.
 
 Update tzMCP by importing a newer published appliance release according to its
 release notes. Do not replace the application files manually inside the VM.
-Ubuntu security updates run automatically. Firefox continues receiving its
-normal Snap updates. Every exported session records exact component versions.
+Ubuntu security updates run automatically. Firefox receives updates from
+Mozilla's signed APT repository. Every exported session records exact component versions.
 
 The native Windows/Linux/macOS CLI and portable-browser workflow are retained
 for contributors and troubleshooting. They are not the supported end-user
