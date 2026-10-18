@@ -185,6 +185,25 @@ def test_streaming_log_sanitizer_matches_full_buffer():
             assert _sanitize_stream(data, parts) == expected
 
 
+def test_streaming_log_sanitizer_seeded_differential(monkeypatch):
+    # Small buffers exercise spool rollover without large fixtures. Keep the
+    # seed and failing input in the assertion so failures are reproducible.
+    monkeypatch.setattr("tzMCP.sessions.log_sanitizer.SANITIZER_RAM_LIMIT", 64)
+    rng = random.Random(17)
+    tokens = [
+        "cookie", "authorization", "set-cookie", "proxy-authorization",
+        " " * 80, "\n" * 90, "\n", "\r", ":", "=", "x", "\t",
+        "?token=", "&secret=", "?apı_key=", "?apİ_key=", "&ſecret=", "é",
+    ]
+    for case in range(1000):
+        data = "".join(rng.choices(tokens, k=rng.randrange(1, 25))).encode()
+        size = rng.randrange(1, 200)
+        parts = [data[index : index + size] for index in range(0, len(data), size)]
+        assert _sanitize_stream(data, parts) == sanitize_log(data), (
+            f"seed=17 case={case} chunk_size={size} input={data!r}"
+        )
+
+
 def _assert_bounded_stream(data: bytes) -> None:
     sanitizer = StreamingLogSanitizer()
     try:
