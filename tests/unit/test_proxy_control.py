@@ -8,6 +8,50 @@ from tzMCP.gui_bits import proxy_control
 from tzMCP.sessions.processes import ProcessIdentity
 
 
+@pytest.mark.parametrize("has_parent_handle", [False, True])
+def test_stop_verifies_recorded_session_even_without_a_live_parent(monkeypatch, tmp_path, has_parent_handle):
+    controller = ProxyController(str(tmp_path / "addon.py"))
+    identity = ProcessIdentity(42, "/proxy", 123, "owner", session_id=42)
+    controller.identity = identity
+    process = Mock()
+    process.poll.return_value = 0
+    controller.process = process if has_parent_handle else None
+    stop_tree = Mock()
+    monkeypatch.setattr(proxy_control, "stop_owned_process_tree", stop_tree)
+
+    controller.stop_proxy()
+
+    stop_tree.assert_called_once_with(identity)
+    assert controller.identity is None
+    assert controller.process is None
+    if has_parent_handle:
+        process.wait.assert_called_once_with(timeout=5)
+
+
+def test_stop_retries_tree_verification_after_parent_exits(monkeypatch, tmp_path):
+    controller = ProxyController(str(tmp_path / "addon.py"))
+    identity = ProcessIdentity(42, "/proxy", 123, "owner", session_id=42)
+    process = Mock()
+    process.poll.return_value = None
+    controller.process = process
+    controller.identity = identity
+    stop_tree = Mock(side_effect=[RuntimeError("Capture spawned more processes"), None])
+    monkeypatch.setattr(proxy_control, "stop_owned_process_tree", stop_tree)
+
+    with pytest.raises(RuntimeError, match="spawned more processes"):
+        controller.stop_proxy()
+    assert controller.identity is identity
+    assert controller.process is process
+    process.poll.return_value = 0
+
+    controller.stop_proxy()
+
+    assert stop_tree.call_count == 2
+    assert all(call.args == (identity,) for call in stop_tree.call_args_list)
+    assert controller.identity is None
+    assert controller.process is None
+
+
 def _controller(monkeypatch, tmp_path, process, port_in_use):
     controller = ProxyController(
         str(tmp_path / "save_media.py"),

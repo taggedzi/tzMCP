@@ -261,8 +261,7 @@ class BrowserTab(ttk.Frame):
         except Exception:
             log_gui.exception("Could not safely stop managed Firefox during shutdown.")
             return
-        if self.proxy_controller.process and self.proxy_controller.process.poll() is None:
-            self.proxy_controller.stop_proxy()
+        self.proxy_controller.stop_proxy()
         if self.session_manager is not None and self.session is not None:
             record = self.session_manager.get(self.session.session_id)
             if record.state in (SessionState.NEW, SessionState.RUNNING):

@@ -120,19 +120,21 @@ class ProxyController:
 
     def stop_proxy(self) -> None:
         """Gracefully terminate the mitmdump subprocess."""
-        if self.process and self.process.poll() is None:
-            if self.identity is not None:
-                stop_owned_process_tree(self.identity)
+        if self.identity is not None:
+            # The parent may have exited during an earlier, incomplete stop.
+            # Its recorded OS session can still contain capture processes.
+            stop_owned_process_tree(self.identity)
+            if self.process is not None:
                 self.process.wait(timeout=5)
-            else:
-                # A launch-time identity failure still leaves us with the
-                # original Popen handle, which must be reaped before returning.
-                self.process.terminate()
-                try:
-                    self.process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    self.process.kill()
-                    self.process.wait(timeout=5)
+        elif self.process and self.process.poll() is None:
+            # A launch-time identity failure still leaves us with the
+            # original Popen handle, which must be reaped before returning.
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=5)
         self.process = None
         self.identity = None
         self.proxy_ready = False
