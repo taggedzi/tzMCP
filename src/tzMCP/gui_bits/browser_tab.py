@@ -25,7 +25,7 @@ class BrowserTab(ttk.Frame):
         self.proxy_controller = proxy_controller
         self.status_bar = status_bar
         self.activity_logger = activity_logger
-        self.session_manager = session_manager
+        self.session_manager = session_manager if is_appliance_mode() else None
         self.config = config
         self.persistent_config_path = Path(persistent_config_path) if persistent_config_path else None
         self.session: SessionRecord | None = None
@@ -132,7 +132,8 @@ class BrowserTab(ttk.Frame):
         )
         self.launch_btn.grid(row=3, column=0, columnspan=3, pady=(8, 2))
         self.export_btn = ttk.Button(launch_frame, text="Export Session", command=self._export_session, state="disabled")
-        self.export_btn.grid(row=4, column=0, columnspan=3, pady=(4, 2))
+        if appliance_mode:
+            self.export_btn.grid(row=4, column=0, columnspan=3, pady=(4, 2))
 
         launch_frame.columnconfigure(1, weight=1)
 

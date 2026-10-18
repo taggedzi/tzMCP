@@ -5,7 +5,7 @@ import pytest
 
 import tzMCP.gui_bits.browser_tab as browser_tab_module
 from tzMCP.gui_bits.browser_tab import BrowserTab
-from tzMCP.gui_bits.config_manager import Config
+from tzMCP.gui_bits.config_manager import Config, ConfigManager
 from tzMCP.save_media import MediaSaver
 from tzMCP.sessions.manager import SessionManager
 from tzMCP.sessions.models import SessionState
@@ -87,6 +87,7 @@ def test_session_manager_assigns_capture_config_to_proxy(
 ):
     # Avoid constructing Tk; exercise the controller methods with a minimal
     # object because the lifecycle logic is deliberately kept in the view.
+    monkeypatch.setattr(browser_tab_module, "is_appliance_mode", lambda: True)
     tab = BrowserTab.__new__(BrowserTab)
     tab.session_manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
     tab.config = Config(
@@ -137,6 +138,81 @@ def test_session_manager_assigns_capture_config_to_proxy(
 
     capture_dir = tab.session_manager.storage.session_dir(tab.session.session_id) / "capture"
     assert [path.name for path in capture_dir.iterdir()] == ["pic.png"]
+    tab.firefox_session = None
+    tab._stop_proxy()
+    assert tab.proxy_controller.config_path == tab.persistent_config_path.resolve()
+
+
+def test_native_capture_restarts_with_persistent_config_and_reloads_rules(
+    tmp_path, monkeypatch, make_flow, make_png
+):
+    import tzMCP.save_media as save_media
+
+    monkeypatch.delenv("TZMCP_APPLIANCE", raising=False)
+    monkeypatch.delenv("TZMCP_AUTO_RELOAD", raising=False)
+    monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(browser_tab_module.ttk.Frame, "__init__", lambda *_: None)
+    monkeypatch.setattr(browser_tab_module.tk, "StringVar", lambda **_: Mock())
+    monkeypatch.setattr(browser_tab_module.tk, "BooleanVar", lambda **_: Mock())
+    monkeypatch.setattr(BrowserTab, "_load_browser_paths", lambda _: {})
+
+    def build_widgets(tab):
+        for name in ("start_btn", "stop_btn", "launch_btn", "export_btn", "proxy_state"):
+            setattr(tab, name, Mock())
+
+    monkeypatch.setattr(BrowserTab, "_build_widgets", build_widgets)
+    config_path = tmp_path / "media_proxy_config.yaml"
+    config = Config(
+        save_dir=tmp_path / "native-captures", allowed_mime_groups=["image"],
+        whitelist=[], blacklist=[],
+        filter_file_size={"enabled": True, "min_bytes": 0, "max_bytes": 10_000_000},
+        filter_pixel_dimensions={
+            "min_width": 1, "min_height": 1, "max_width": 10_000, "max_height": 10_000,
+        },
+    )
+    config_manager = ConfigManager(config_path)
+    config_manager.save_config(config)
+    controller = SimpleNamespace(config_path=config_path, process=None, proxy_port=8080)
+    started_paths = []
+
+    def start_proxy():
+        started_paths.append(controller.config_path)
+        controller.process = SimpleNamespace(poll=lambda: None)
+
+    controller.start_proxy = start_proxy
+    controller.stop_proxy = lambda: setattr(controller, "process", None)
+    manager = Mock()
+    tab = BrowserTab(None, controller, session_manager=manager, config=config,
+                     persistent_config_path=config_path)
+    assert tab.session_manager is None
+    assert tab.export_service is None
+    tab._start_proxy()
+
+    watcher = Mock()
+    monkeypatch.setattr(save_media, "Observer", lambda: watcher)
+    addon = MediaSaver(config_path=controller.config_path)
+    watcher.start.assert_called_once()
+    assert addon.config.save_dir == config.save_dir
+    addon.response(make_flow("http://example.com/first.png", make_png(500, 500)))
+    assert (config.save_dir / "first.png").is_file()
+
+    config.save_dir = tmp_path / "changed-captures"
+    config_manager.save_config(config)
+    # Exercise the watcher's reload callback synchronously, without a timer.
+    addon._debounced_reload()
+    assert addon.config.save_dir == config.save_dir
+    addon.response(make_flow("http://example.com/second.png", make_png(501, 500)))
+    assert (config.save_dir / "second.png").is_file()
+    addon.done()
+
+    tab._stop_proxy()
+    tab.start_btn.config.assert_called_with(state="normal")
+    tab.export_btn.config.assert_called_with(state="disabled")
+    tab._start_proxy()
+    assert started_paths == [config_path, config_path]
+    assert tab.session is None
+    assert manager.method_calls == []
+    tab._stop_proxy()
 
 
 def test_proxy_start_failure_is_recorded_and_preserves_exportable_session(

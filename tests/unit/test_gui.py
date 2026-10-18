@@ -13,6 +13,7 @@ from tzMCP.gui_bits.browser_tab import BrowserTab
 from tzMCP.sessions.models import SessionRecord, SessionState
 
 
+@pytest.mark.parametrize("appliance_mode", [False, True])
 @pytest.mark.parametrize("outcome", [
     None,
     SessionRecord("20261016T000000Z-01234567", state=SessionState.INTERRUPTED),
@@ -21,7 +22,7 @@ from tzMCP.sessions.models import SessionRecord, SessionState
     OSError("session state unavailable"),
     ValueError(),
 ])
-def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outcome):
+def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outcome, appliance_mode):
     # Import only after redirecting logging, so no real runtime files are opened.
     monkeypatch.setattr(log_config, "setup_logging", lambda: None)
     import tzMCP.gui as gui
@@ -31,7 +32,8 @@ def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outc
     monkeypatch.setattr(gui.MainApp, "protocol", lambda *args: None)
     for name in ("config_dir", "profiles_dir", "logs_dir", "ca_dir"):
         monkeypatch.setattr(gui, name, lambda name=name: tmp_path / name)
-    monkeypatch.setattr(gui, "is_appliance_mode", lambda: False)
+    monkeypatch.setattr(gui, "is_appliance_mode", lambda: appliance_mode)
+    monkeypatch.setattr(gui, "ensure_runtime_dirs", Mock())
     for name in ("clean_old_profiles", "clean_old_logs", "start_gui_log_server"):
         monkeypatch.setattr(gui, name, Mock())
     monkeypatch.setattr(gui, "ConfigManager", Mock(return_value=SimpleNamespace(
@@ -63,7 +65,16 @@ def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outc
         path.write_bytes(b"original evidence")
     before = {path: path.read_bytes() for path in evidence_paths}
 
-    gui.MainApp()
+    app = gui.MainApp()
+
+    if not appliance_mode:
+        gui.SessionManager.assert_not_called()
+        assert app.session_manager is None
+        assert manager.method_calls == []
+        tab.restore_recovered_session.assert_not_called()
+        showerror.assert_not_called()
+        assert {path: path.read_bytes() for path in evidence_paths} == before
+        return
 
     manager.recover_active.assert_called_once_with()
     assert manager.method_calls == [("recover_active", (), {})]
