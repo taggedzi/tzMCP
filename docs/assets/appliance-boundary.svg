@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="370" viewBox="0 0 960 370" role="img" aria-labelledby="title desc">
+  <title id="title">Appliance and host boundary</title>
+  <desc id="desc">Inside the Windows host, the VirtualBox guest contains managed Firefox, a loopback proxy, and session captures. Websites connect through NAT. A deliberate export copies a ZIP through the controlled share to the host export folder. Host browser and trust settings are unchanged.</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0l8 4-8 4z" fill="#52758a"/></marker></defs>
+  <rect width="960" height="370" rx="18" fill="#f0f5f9"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="28" y="35" fill="#173448" font-size="20" font-weight="700">Where capture happens</text>
+    <rect x="28" y="57" width="710" height="285" rx="12" fill="#fff" stroke="#a9c4d5" stroke-width="2"/>
+    <text x="46" y="86" fill="#173448" font-size="17" font-weight="700">Your Windows computer · host</text>
+    <rect x="46" y="105" width="448" height="215" rx="12" fill="#e4f4ef" stroke="#4b9e8d" stroke-width="2"/>
+    <text x="63" y="133" fill="#165e50" font-size="17" font-weight="700">VirtualBox appliance · guest</text>
+    <g fill="#fff" stroke="#8cb9ac"><rect x="64" y="154" width="163" height="63" rx="8"/><rect x="284" y="154" width="190" height="63" rx="8"/><rect x="284" y="246" width="190" height="54" rx="8"/></g>
+    <g font-size="14" fill="#173448" text-anchor="middle"><text x="146" y="180">Managed Firefox</text><text x="146" y="201">Private profile + CA trust</text><text x="379" y="180">Capture proxy</text><text x="379" y="201">127.0.0.1:8888</text><text x="379" y="268">Session captures</text><text x="379" y="288">Stop → build ZIP</text></g>
+    <g stroke="#52758a" stroke-width="2" fill="none" marker-end="url(#arrow)"><path d="M228 185h53"/><path d="M379 218v25"/></g>
+    <rect x="533" y="246" width="184" height="54" rx="8" fill="#edf1fc" stroke="#a6b4d3"/>
+    <text x="625" y="268" text-anchor="middle" font-size="14" fill="#173448">Windows export folder</text><text x="625" y="288" text-anchor="middle" font-size="14" fill="#173448">Completed ZIP archive</text>
+    <path d="M475 272h55" stroke="#52758a" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="625" y="151" text-anchor="middle" font-size="14" fill="#405c6e">Host browser and</text><text x="625" y="173" text-anchor="middle" font-size="14" fill="#405c6e">trust store unchanged</text>
+    <rect x="773" y="145" width="159" height="74" rx="10" fill="#fff" stroke="#a9c4d5"/>
+    <text x="852" y="176" text-anchor="middle" font-size="16" font-weight="700" fill="#173448">Websites</text><text x="852" y="199" text-anchor="middle" font-size="13" fill="#405c6e">Untrusted content</text>
+    <path d="M475 185h295" stroke="#52758a" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow)"/>
+    <text x="625" y="210" text-anchor="middle" font-size="12" fill="#405c6e">NAT · no port forwarding</text>
+  </g>
+</svg>

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=tzMCP Capture
+Comment=Capture media in the isolated tzMCP appliance
+Exec=env TZMCP_APPLIANCE=1 TZMCP_DATA_DIR=/var/lib/tzmcp /usr/local/bin/tzmcp-gui
+Terminal=false
+Categories=Network;Utility;

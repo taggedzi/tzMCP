@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="240" viewBox="0 0 960 240" role="img" aria-labelledby="title desc">
+  <title id="title">tzMCP — Taggedz Media Capture Proxy</title>
+  <desc id="desc">Capture what you browse. Keep what you need. A browser connects through capture rules to a file collection.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101d36"/><stop offset="1" stop-color="#153f52"/></linearGradient>
+    <linearGradient id="accent" gradientUnits="userSpaceOnUse" x1="546" y1="0" x2="906" y2="0"><stop stop-color="#5ce0c6"/><stop offset="1" stop-color="#7fc8ff"/></linearGradient>
+  </defs>
+  <rect width="960" height="240" rx="22" fill="url(#bg)"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <rect x="38" y="35" width="204" height="28" rx="14" fill="#24445a"/>
+    <text x="140" y="54" text-anchor="middle" font-size="12" fill="#c4f5ed" letter-spacing="1.5">BROWSE · FILTER · SAVE</text>
+    <text x="38" y="128" font-size="62" font-weight="700" fill="#ffffff">tzMCP</text>
+    <text x="40" y="164" font-size="22" fill="#deedf4">Capture what you browse.</text>
+    <text x="40" y="195" font-size="22" fill="#94e8d7">Keep what you need.</text>
+    <g fill="none" stroke="url(#accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="546" y="73" width="104" height="82" rx="10"/><path d="M546 95h104"/>
+      <path d="M562 84h3m9 0h3m9 0h3M573 117l-9 9 9 9m49-18 9 9-9 9m-24-21-7 26"/>
+      <path d="M665 115h54m-9-8 9 8-9 8"/><path d="M741 81h54l-20 31v27l-15 8v-35z"/>
+      <path d="M809 115h34m-9-8 9 8-9 8"/><path d="M864 87h27l15 15v50h-42zM891 87v16h15M875 120h20m-20 12h20"/>
+    </g>
+    <g fill="#d5e7ed" font-size="14" text-anchor="middle"><text x="598" y="185">Browse</text><text x="768" y="185">Choose</text><text x="885" y="185">Keep</text></g>
+  </g>
+</svg>

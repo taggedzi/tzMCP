@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="330" viewBox="0 0 960 330" role="img" aria-labelledby="title desc">
+  <title id="title">From browsing to an exported capture</title>
+  <desc id="desc">Choose capture rules. Browse through a local proxy. Inspect website responses. Save matching files and skip the rest. Stop and export a ZIP. Skipped responses still reach the browser.</desc>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0l8 4-8 4z" fill="#52758a"/></marker></defs>
+  <rect width="960" height="330" rx="18" fill="#f0f5f9"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="28" y="37" fill="#173448" font-size="20" font-weight="700">One session, from browser to files</text>
+    <g fill="#ffffff" stroke="#c6d7e2" stroke-width="1.5">
+      <rect x="28" y="72" width="164" height="135" rx="12"/><rect x="218" y="72" width="164" height="135" rx="12"/>
+      <rect x="408" y="72" width="164" height="135" rx="12"/><rect x="598" y="72" width="164" height="135" rx="12"/>
+      <rect x="788" y="72" width="144" height="135" rx="12"/>
+    </g>
+    <g stroke="#52758a" stroke-width="2" marker-end="url(#arrow)"><path d="M193 139h22"/><path d="M383 139h22"/><path d="M573 139h22"/><path d="M763 139h22"/></g>
+    <g fill="#087b6b" font-size="24" font-weight="700"><text x="44" y="105">01</text><text x="234" y="105">02</text><text x="424" y="105">03</text><text x="614" y="105">04</text><text x="804" y="105">05</text></g>
+    <g fill="#173448" font-size="17" font-weight="700"><text x="44" y="137">Choose rules</text><text x="234" y="137">Browse</text><text x="424" y="137">Inspect</text><text x="614" y="137">Save matches</text><text x="804" y="137">Export ZIP</text></g>
+    <g fill="#405c6e" font-size="14">
+      <text x="44" y="164">Types, sizes,</text><text x="44" y="184">and domains</text><text x="234" y="164">Managed Firefox</text><text x="234" y="184">through the proxy</text>
+      <text x="424" y="164">Check responses</text><text x="424" y="184">against your rules</text><text x="614" y="164">Skip duplicates</text><text x="614" y="184">and other files</text>
+      <text x="804" y="164">Stop first, then</text><text x="804" y="184">copy to Windows</text>
+    </g>
+    <rect x="28" y="234" width="904" height="67" rx="10" fill="#dceef3"/>
+    <text x="46" y="261" fill="#173448" font-size="15" font-weight="700">The website response still goes to your browser.</text>
+    <text x="46" y="283" fill="#405c6e" font-size="14">Capture rules filter saved files. They do not act as a website blocker or malware scanner.</text>
+  </g>
+</svg>

@@ -28,16 +28,17 @@ def init_hash_db(persist: bool = True, db_path: Path = None):
     _db.execute("CREATE TABLE IF NOT EXISTS hashes (hash TEXT PRIMARY KEY)")
     _db.commit()
 
-def is_duplicate(content: bytes) -> bool:
-    """Generate a hash for a file, and compare to db to see if already in existence."""
+def is_duplicate(content: bytes, *, register: bool = True) -> bool:
+    """Check a content hash, optionally remembering previously unseen content."""
     h = hashlib.sha256(content).hexdigest()
 
     if isinstance(_db, set):
         if h in _db:
             log_proxy.debug("Hash found in set this is a Duplicate file.")
             return True
-        log_proxy.debug("Hash not found in set, adding.")
-        _db.add(h)
+        if register:
+            log_proxy.debug("Hash not found in set, adding.")
+            _db.add(h)
         return False
 
 
@@ -45,9 +46,10 @@ def is_duplicate(content: bytes) -> bool:
     if cur.fetchone():
         log_proxy.debug("Hash found in DB.")
         return True
-    log_proxy.debug("Hash not foundin DB, adding.")
-    _db.execute("INSERT INTO hashes (hash) VALUES (?)", (h,))
-    _db.commit()
+    if register:
+        log_proxy.debug("Hash not found in DB, adding.")
+        _db.execute("INSERT INTO hashes (hash) VALUES (?)", (h,))
+        _db.commit()
     return False
 
 def shutdown_hash_db():

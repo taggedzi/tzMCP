@@ -1,0 +1,13 @@
+[Unit]
+Description=Initialize the tzMCP appliance
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/local/libexec/tzmcp-first-boot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/tzmcp-first-boot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

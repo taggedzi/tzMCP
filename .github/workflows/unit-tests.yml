@@ -1,4 +1,4 @@
-name: Unit tests
+name: Application and host tests
 
 on:
   push:
@@ -17,9 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             python-version: '3.12'
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             python-version: '3.13'
           - os: windows-latest
             python-version: '3.12'
@@ -33,6 +33,7 @@ jobs:
           git init .
           git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git checkout --detach FETCH_HEAD
       - name: Select Python on Linux
         if: runner.os == 'Linux'
@@ -54,8 +55,8 @@ jobs:
           $pythonDir | Add-Content -Path $env:GITHUB_PATH
           (Join-Path $pythonDir 'Scripts') | Add-Content -Path $env:GITHUB_PATH
       - name: Install test dependencies
-        run: >
+        run: |
           python -m pip install --upgrade pip
-          && python -m pip install ".[dev]" PyYAML Pillow filetype requests
-      - name: Run unit tests
-        run: python -m pytest tests/unit -q
+          python -m pip install ".[dev]"
+      - name: Run complete Python suite
+        run: python -m pytest -q

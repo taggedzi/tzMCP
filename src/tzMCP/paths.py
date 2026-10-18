@@ -39,3 +39,46 @@ def logs_dir() -> Path:
 
 def profiles_dir() -> Path:
     return data_dir() / "profiles"
+
+
+def appliance_browser_dir(session_id: str) -> Path:
+    """Keep managed Firefox profiles outside captured session data."""
+    from tzMCP.sessions.models import validate_session_id
+
+    return data_dir() / "browser-profiles" / validate_session_id(session_id)
+
+
+def sessions_dir() -> Path:
+    """Return the root for isolated capture sessions."""
+    return data_dir() / "sessions"
+
+
+def ca_dir() -> Path:
+    """Return the persistent, VM-specific mitmproxy CA directory."""
+    return data_dir() / "ca" / "mitmproxy"
+
+
+def runtime_dir() -> Path:
+    """Return short-lived process and launch metadata storage."""
+    return data_dir() / "runtime"
+
+
+def export_ready_dir() -> Path:
+    """Return the local archive handoff directory."""
+    return data_dir() / "export-ready"
+
+
+def ensure_private_dir(path: Path) -> Path:
+    """Create a runtime directory and restrict it to its owner where supported."""
+    path.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        path.chmod(0o700)
+        if path.stat().st_mode & 0o077:
+            raise PermissionError(f"Directory is not owner-only: {path}")
+    return path
+
+
+def ensure_runtime_dirs() -> None:
+    """Create appliance runtime roots without creating session or CA contents."""
+    for path in (sessions_dir(), ca_dir(), runtime_dir(), export_ready_dir(), data_dir() / "browser-profiles"):
+        ensure_private_dir(path)

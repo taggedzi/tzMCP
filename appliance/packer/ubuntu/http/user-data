@@ -1,0 +1,21 @@
+#cloud-config
+autoinstall:
+  version: 1
+  interactive-sections: []
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  identity:
+    hostname: tzmcp-appliance
+    username: ${build_username}
+    realname: tzMCP Build User
+    password: ${build_password_hash}
+  ssh:
+    install-server: true
+    allow-pw: true
+  storage:
+    layout:
+      name: direct
+  updates: all
+  late-commands:
+    - curtin in-target --target=/target -- systemctl enable ssh

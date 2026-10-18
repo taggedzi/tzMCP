@@ -1,160 +1,57 @@
-# ⚙️ Understanding the Configuration Tab in tzMCP
+# Capture Rules guide
 
-The **Configuration Tab** in tzMCP lets you control exactly what files get saved when browsing through the proxy. This guide explains what each option does so you can fine-tune your capture behavior.
+Use **Capture Rules** to choose which response files tzMCP saves. Save changes before starting a session. For the full workflow, see the [README](../README.md#your-first-capture).
 
----
+## Start with a small test
 
-## 🔌 Proxy Port
+1. Select **Image**, then select **Save Configuration**.
+2. Start a session and check **Activity** for saved/skipped messages.
 
-**What it does:**
-Sets the local TCP port where tzMCP listens for browser traffic. The default is
-`8888`.
+No MIME groups are selected by default, so a new configuration saves nothing until you select one. MIME means file type.
 
-**How to use:**
-- Choose a port from `1` through `65535` that is not already used or reserved
-  by Windows.
-- The built-in browser launcher automatically uses this value.
-- Restart the proxy after changing it; a running proxy keeps its current port.
+## File categories
 
----
+| Group | Intended content |
+| --- | --- |
+| Image | Supported image types |
+| Video | Supported video responses; segments are not assembled |
+| Audio | Supported audio files |
+| Text | Supported text, including HTML, CSS, and JavaScript |
+| Document | Listed PDF, Office, and ebook types |
+| Executable | Program/script types; potentially harmful, leave off for normal capture |
 
-## 🗂️ Save Directory
+Types are selected from a maintained list. The detector checks known URL extensions before inspecting bytes. A selected category is not proof that a file is safe or correctly labeled.
 
-**What it does:**  
-Specifies the folder where all downloaded files will be saved.
+## File size and image dimensions
 
-**Tips:**
-- Use a dedicated folder
-- Ensure it’s on a drive with enough space
-- You can change this any time
+File size uses bytes. The default range is **10,240 to 157,286,400 bytes** (10 KiB to 150 MiB), including both endpoints. Lower the minimum to keep smaller files.
 
----
+Image dimensions use pixels. Defaults require width and height each between **301 and 12,000**. For a test that includes thumbnails, lower both minimums before your next session. Dimension checks are not a general image safety validator.
 
-## 📦 Allowed MIME Groups
+## Domains
 
-**What it does:**  
-Controls what types of files tzMCP is allowed to save based on their **MIME group** — like "image", "video", "html", etc.
+The **Whitelist** allows saving only from matching domains. Empty means no domain restriction. The **Blacklist** skips matching sources even when the whitelist permits them.
 
-**How it works:**
-- tzMCP scans every file’s actual content to detect its true type
-- Only files matching the selected MIME groups will be saved
+Enter a hostname such as `example.com`, one per line. It matches that domain and its subdomains. Some pages load media from a separate content-delivery domain; check Activity when an expected file is skipped.
 
-**Example:**  
-If you only check “image” and “video”, tzMCP will skip HTML, CSS, and other types.
+Advanced entries can be Python regular expressions, not shell-style wildcards. Prefer bare hostnames unless you need a pattern. These lists control saving, not which websites the browser can visit.
 
----
+## Storage and connection
 
-## 🌐 Domain Whitelist
+**Proxy Port** defaults to `8888`. Change it only while stopped, then start a new session. The managed browser uses the configured port automatically.
 
-**What it does:**  
-Lets you **only allow downloads from specific domains**.
+GUI sessions save into their own capture directory. The **Save Directory** field is used by standalone CLI capture and is overridden for GUI sessions. It does not choose the Windows export folder; choose that during appliance setup.
 
-**How to use:**
-- Leave empty to allow **all** domains
-- Add one domain per line (e.g., `example.com` or `cdn.example.net`)
-- Wildcards are supported (`.*`, `ads\..*`, etc.)
+## Logging and duplicate files
 
-**Example:**  
-Only want media from `wikipedia.org`? Add:
-```
-wikipedia.org
-```
+**Log to File** enables diagnostic files; **INFO** is a useful normal log level. **DEBUG** is more detailed. Logs can contain browsing information; review them before sharing.
 
----
+Deduplication compares content fingerprints, not filenames. It avoids another saved copy after a matching response arrives; it does not stop the browser downloading the response. Without **Persistent Deduplication**, fingerprints last for one proxy run. With it, SQLite remembers them across runs, so content saved in an earlier session may be absent from a later export.
 
-## 🚫 Domain Blacklist
+## Reload and cleanup
 
-**What it does:**  
-Lets you **block** media from certain domains, even if they match MIME rules.
+Appliance rules are copied at session start. **Auto Reload Config** does not update a running appliance capture. Restart for changed rules. Normal native snapshot launch paths also have reload limitations documented in the [technical reference](DEVELOPER_SECURITY_GUIDE.md#snapshots-and-reload-behavior).
 
-**How to use:**
-- Add one domain or pattern per line
-- If a domain matches the blacklist, its files will be skipped
+**Clean Old Logs Now** and **Clean Old Profiles Now** remove eligible old global diagnostic files/native profiles. They do not export or clear completed capture sessions. Keep needed evidence and private data in mind before any cleanup.
 
-**Example:**
-```
-ads\..*
-.*\.doubleclick\.net
-```
-
----
-
-## 📏 File Size Filter (in bytes)
-
-**What it does:**  
-Lets you ignore files that are **too small** or **too large**.
-
-**Common use cases:**
-- Avoid saving icons, trackers, or tiny images
-- Skip huge video files or blobs
-
-**Example settings:**
-- **Min:** 10240 = 10 KB
-- **Max:** 157286400 = 150 MB
-
----
-
-## 📐 Image Dimension Filter
-
-**What it does:**  
-Allows you to control what images get saved based on their **width and height**.
-
-**Useful for:**
-- Skipping tiny thumbnails or tracking pixels
-- Avoiding massive full-page scans
-
-**How to use:**
-- Set min/max width and height
-- Leave as default if you’re unsure
-
----
-
-## 📓 Logging Options
-
-### ✔️ Log to File
-
-- When enabled, logs will be saved in the `logs/` folder for future review
-
-### 🧠 Log Level
-
-Controls how much detail is shown:
-- `DEBUG`: Everything
-- `INFO`: Most messages
-- `WARNING`: Only potential issues
-- `ERROR`: Serious problems only
-- `CRITICAL`: Crashes or failures
-
----
-
-## 🧪 tzMCP Options
-
-### 🔁 Auto Reload Config
-
-- Watches the config file for changes
-- If enabled, the system reloads settings automatically
-
-### 🧬 Enable Persistent Deduplication
-
-- Tracks downloaded content using a SHA256 hash
-- Prevents re-downloading the same file again
-- Uses a small local database
-
----
-
-## 🧹 Manual Cleanup Buttons
-
-At the bottom, you’ll find buttons to:
-- **Clean old logs**
-- **Clean expired browser profiles**
-
-These are safe to run and help keep your project folder tidy.
-
----
-
-## 🧠 Final Tips
-
-- Use MIME groups and size/dimension filters together for best results
-- Adjust settings, then browse a few sites and check what gets saved
-- View logs in the GUI to understand what was skipped and why
-
-You’re in full control. Capture what you want, skip what you don’t.
+For YAML defaults, CLI flags, the dimension-enable caveat, and implementation details, use the [configuration reference](DEVELOPER_SECURITY_GUIDE.md#configuration-reference).

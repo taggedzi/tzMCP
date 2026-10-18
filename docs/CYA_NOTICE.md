@@ -6,10 +6,10 @@ By using this project (`tzMCP` - Taggedz Media Capture Proxy), you agree to the 
 
 ## 🔍 Nature of This Tool
 
-- `tzMCP` operates as a **transparent proxy** using [mitmproxy](https://mitmproxy.org/).
-- It **does not attempt to break or bypass encryption**.
-- It only captures and saves content that is already **transmitted through the proxy as-is**.
-- No effort is made to decrypt, alter, or inspect content that remains encrypted unless the client voluntarily trusts the mitmproxy CA certificate.
+- `tzMCP` operates as a **local capture proxy** using [mitmproxy](https://mitmproxy.org/). The capture browser is configured to send traffic through it.
+- For HTTPS capture, the browser trusts the proxy's CA certificate. The proxy terminates the browser's TLS connection and creates a separate connection to the website, allowing it to inspect decrypted responses.
+- It selectively saves response bodies received through the proxy. Capture filters do not make those files safe or grant permission to reuse them.
+- Do not enter passwords, payment details, recovery codes, or other sensitive information in a capture session. See the [security guide](DEVELOPER_SECURITY_GUIDE.md#security-model-and-trust-boundaries) for the trust model and limitations.
 
 ---
 
