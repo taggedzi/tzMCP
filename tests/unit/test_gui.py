@@ -51,7 +51,7 @@ def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outc
     tab = BrowserTab.__new__(BrowserTab)
     for name in ("start_btn", "stop_btn", "launch_btn", "export_btn", "proxy_state"):
         setattr(tab, name, Mock())
-    tab.restore_recovered_session = Mock()
+    tab.restore_pending_sessions = Mock()
     monkeypatch.setattr(gui.MainApp, "build_ui", lambda self: setattr(self, "browser_tab", tab))
     showerror = Mock()
     monkeypatch.setattr(browser_tab_module.messagebox, "showerror", showerror)
@@ -71,32 +71,35 @@ def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outc
         gui.SessionManager.assert_not_called()
         assert app.session_manager is None
         assert manager.method_calls == []
-        tab.restore_recovered_session.assert_not_called()
+        tab.restore_pending_sessions.assert_not_called()
         showerror.assert_not_called()
         assert {path: path.read_bytes() for path in evidence_paths} == before
         return
 
     manager.recover_active.assert_called_once_with()
-    assert manager.method_calls == [("recover_active", (), {})]
     assert {path: path.read_bytes() for path in evidence_paths} == before
     if isinstance(outcome, Exception):
+        assert manager.method_calls == [("recover_active", (), {})]
         assert type(outcome).__name__ in tab.recovery_error
         assert str(outcome) in tab.recovery_error
         tab._update_launch_state()  # Later refreshes must also keep capture blocked.
         for name in ("start_btn", "stop_btn", "launch_btn", "export_btn"):
             getattr(tab, name).config.assert_called_with(state="disabled")
-        tab.restore_recovered_session.assert_not_called()
+        tab.restore_pending_sessions.assert_not_called()
         showerror.assert_called_once()
         assert tab.recovery_error in showerror.call_args.args[1]
         assert "review the recovery traceback" in showerror.call_args.args[1]
         logger.exception.assert_called_once()
     else:
+        assert [call[0] for call in manager.method_calls] == [
+            "recover_active", "list_pending_exports",
+        ]
         assert "recovery_error" not in tab.__dict__
         showerror.assert_not_called()
         if outcome is None:
-            tab.restore_recovered_session.assert_not_called()
+            tab.restore_pending_sessions.assert_not_called()
         else:
-            tab.restore_recovered_session.assert_called_once_with(outcome)
+            tab.restore_pending_sessions.assert_called_once_with([outcome])
 
 @pytest.mark.parametrize("existing_config", [False, True])
 def test_native_start_persists_missing_defaults_without_rewriting_existing_config(
@@ -269,7 +272,7 @@ def test_main_app_attaches_recovered_session_after_building_the_gui():
     source = gui_module.read_text(encoding="utf-8")
 
     build_ui = source.index("self.build_ui()")
-    restore_session = source.index("self.browser_tab.restore_recovered_session(recovered)")
+    restore_session = source.index("self.browser_tab.restore_pending_sessions(pending)")
     build_ui_method = source.index("    def build_ui(self):")
 
     assert build_ui < restore_session < build_ui_method
@@ -378,3 +381,185 @@ def test_export_publication_failure_keeps_local_archive_and_session_retryable(
     assert completed_exports == []
     assert tab.start_btn.options["state"] == "disabled"
     assert tab.export_btn.options["state"] == "normal"
+
+
+class _Widget:
+    def __init__(self):
+        self.options = {}
+
+    def config(self, **options):
+        self.options.update(options)
+
+
+class _FakeVar:
+    def __init__(self):
+        self.value = ""
+
+    def set(self, value):
+        self.value = value
+
+    def get(self):
+        return self.value
+
+
+class _FakeMenu(dict):
+    def config(self, **options):
+        self.options = options
+
+
+class _FakeFrame:
+    def __init__(self):
+        self.visible = False
+
+    def grid(self):
+        self.visible = True
+
+    def grid_remove(self):
+        self.visible = False
+
+
+def test_startup_restores_every_pending_session_oldest_first(monkeypatch, tmp_path):
+    monkeypatch.setattr(log_config, "setup_logging", lambda: None)
+    import tzMCP.gui as gui
+
+    monkeypatch.setattr(gui.tk.Tk, "__init__", lambda self: None)
+    monkeypatch.setattr(gui.MainApp, "title", lambda *args: None)
+    monkeypatch.setattr(gui.MainApp, "protocol", lambda *args: None)
+    for name in ("config_dir", "profiles_dir", "logs_dir", "ca_dir"):
+        monkeypatch.setattr(gui, name, lambda name=name: tmp_path / name)
+    monkeypatch.setattr(gui, "is_appliance_mode", lambda: True)
+    monkeypatch.setattr(gui, "ensure_runtime_dirs", Mock())
+    for name in ("clean_old_profiles", "clean_old_logs", "start_gui_log_server"):
+        monkeypatch.setattr(gui, name, Mock())
+    monkeypatch.setattr(gui, "ConfigManager", Mock(return_value=SimpleNamespace(
+        load_config=lambda: SimpleNamespace(proxy_port=8080), save_config=Mock()
+    )))
+    manager = Mock(wraps=gui.SessionManager(root=tmp_path / "sessions", runtime_root=tmp_path / "runtime"))
+    older = SessionRecord("20261016T000000Z-00000001", state=SessionState.ENDED)
+    newer = SessionRecord("20261016T000000Z-00000002", state=SessionState.INTERRUPTED)
+    manager.recover_active.return_value = None
+    manager.list_pending_exports.return_value = [newer, older]
+    monkeypatch.setattr(gui, "SessionManager", Mock(return_value=manager))
+    monkeypatch.setattr(gui, "ProxyController", Mock())
+    tab = BrowserTab.__new__(BrowserTab)
+    tab.restore_pending_sessions = Mock()
+    monkeypatch.setattr(gui.MainApp, "build_ui", lambda self: setattr(self, "browser_tab", tab))
+    monkeypatch.setattr(gui, "log_gui", Mock())
+
+    gui.MainApp()
+
+    tab.restore_pending_sessions.assert_called_once_with([older, newer])
+
+
+def test_pending_sessions_stay_selectable_until_each_export_succeeds(monkeypatch):
+    older = SessionRecord("20261016T000000Z-00000001", state=SessionState.ENDED)
+    newer = SessionRecord("20261016T000000Z-00000002", state=SessionState.INTERRUPTED)
+    tab = BrowserTab.__new__(BrowserTab)
+    tab.pending_sessions = []
+    tab.session = None
+    tab.proxy_controller = SimpleNamespace(process=None)
+    tab.safe_browser_acknowledged = SimpleNamespace(get=lambda: False)
+    tab.pending_session_id = _FakeVar()
+    tab.pending_menu = _FakeMenu()
+    tab.pending_frame = _FakeFrame()
+    activities = []
+    tab.activity_logger = lambda entry: activities.extend(entry["lines"])
+    for name in ("start_btn", "stop_btn", "launch_btn", "export_btn", "proxy_state"):
+        setattr(tab, name, _Widget())
+    exported_ids = []
+
+    def complete_export(session_id, name, size, digest):
+        exported_ids.append(session_id)
+        return SessionRecord(session_id, state=SessionState.EXPORTED)
+
+    tab.session_manager = SimpleNamespace(complete_export=complete_export)
+    tab.firefox_session = None
+    tab.export_service = SimpleNamespace(
+        create_local_archive=lambda *_args: SimpleNamespace(
+            archive_path=Path(f"{tab.session.session_id}.zip"), size=1, sha256="abc"
+        ),
+        publish=lambda _result: None,
+    )
+    monkeypatch.setattr(browser_tab_module, "is_appliance_mode", lambda: True)
+    monkeypatch.setattr(browser_tab_module, "collect_versions", lambda _path: {})
+
+    tab.restore_pending_sessions([newer, older])
+
+    assert tab.session is older
+    assert tab.pending_menu["values"] == [older.session_id, newer.session_id]
+    assert tab.pending_frame.visible is True
+    assert tab.start_btn.options["state"] == "disabled"
+    assert older.session_id in activities[0]
+    assert newer.session_id in activities[0]
+    tab.pending_session_id.set(newer.session_id)
+    tab._on_pending_selected()
+    assert tab.session is newer
+
+    tab._export_session()
+
+    assert exported_ids == [newer.session_id]
+    assert tab.session is older
+    assert tab.start_btn.options["state"] == "disabled"
+    assert tab.pending_menu["values"] == [older.session_id]
+    tab._export_session()
+    assert exported_ids == [newer.session_id, older.session_id]
+    assert tab.session.state is SessionState.EXPORTED
+    assert tab.start_btn.options["state"] == "normal"
+    assert tab.pending_frame.visible is False
+
+
+def test_start_refuses_pending_sessions_and_allows_a_new_capture_after_export(
+    tmp_path, monkeypatch
+):
+    from tzMCP.gui_bits.config_manager import Config
+    from tzMCP.sessions.manager import SessionManager
+
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    ids = iter(["20261016T000000Z-00000001", "20261016T000000Z-00000002"])
+    monkeypatch.setattr(manager, "_new_id", lambda: next(ids))
+    first = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    manager.transition(first.session_id, SessionState.INTERRUPTED)
+    tab = BrowserTab.__new__(BrowserTab)
+    tab.session_manager = manager
+    tab.session = None
+    tab.pending_sessions = []
+    tab.config = Config(save_dir=tmp_path / "unused")
+    tab.proxy_controller = SimpleNamespace(
+        process=None,
+        config_path=tmp_path / "persistent.yaml",
+        proxy_port=8080,
+        start_proxy=lambda: None,
+    )
+    tab.persistent_config_path = tmp_path / "persistent.yaml"
+    tab.status_bar = None
+    tab.safe_browser_acknowledged = SimpleNamespace(get=lambda: False)
+    tab.firefox_session = None
+    tab.activity_logger = None
+    tab._append_activity = lambda *_args: None
+    for name in ("start_btn", "stop_btn", "launch_btn", "export_btn", "proxy_state"):
+        setattr(tab, name, _Widget())
+    tab.export_service = SimpleNamespace(
+        create_local_archive=lambda *_args: SimpleNamespace(
+            archive_path=Path(f"{first.session_id}.zip"), size=4, sha256="ab" * 32
+        ),
+        publish=lambda _result: None,
+    )
+    monkeypatch.setattr(browser_tab_module, "is_appliance_mode", lambda: True)
+    monkeypatch.setattr(browser_tab_module, "collect_versions", lambda _path: {})
+
+    tab._start_proxy()
+
+    assert [item.session_id for item in manager.list_pending_exports()] == [first.session_id]
+    assert not manager.active_path.exists()
+    assert tab.start_btn.options["state"] == "disabled"
+    assert first.session_id in tab.proxy_state.options["text"]
+    tab._export_session()
+    assert manager.get(first.session_id).state is SessionState.EXPORTED
+    assert manager.list_pending_exports() == []
+    assert tab.start_btn.options["state"] == "normal"
+
+    tab._start_proxy()
+
+    assert tab.session.session_id == "20261016T000000Z-00000002"
+    assert tab.session.state is SessionState.RUNNING
+    assert manager.list_pending_exports() == []

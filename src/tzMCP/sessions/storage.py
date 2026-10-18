@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from tzMCP.sessions.models import SessionRecord, validate_session_id
+from tzMCP.sessions.models import SESSION_ID_RE, SessionRecord, validate_session_id
 
 
 class SessionStorage:
@@ -23,6 +23,27 @@ class SessionStorage:
 
     def state_path(self, session_id: str) -> Path:
         return self.session_dir(session_id) / "state.json"
+
+    def list_session_ids(self) -> list[str]:
+        """Return session directory names that stay inside the session root.
+
+        Symlinks and non-directories are not session stores. A symlink whose
+        name looks like a session ID is rejected so discovery cannot follow it
+        or ignore it quietly.
+        """
+        found: list[str] = []
+        for child in self.root.iterdir():
+            if child.is_symlink():
+                if SESSION_ID_RE.fullmatch(child.name):
+                    raise ValueError(f"Session path is a symlink: {child.name}")
+                continue
+            if not child.is_dir() or SESSION_ID_RE.fullmatch(child.name) is None:
+                continue
+            resolved = child.resolve()
+            if resolved.parent != self.root:
+                raise ValueError(f"Session path escaped session root: {child.name}")
+            found.append(child.name)
+        return sorted(found)
 
     def create_layout(self, session_id: str) -> Path:
         directory = self.session_dir(session_id)

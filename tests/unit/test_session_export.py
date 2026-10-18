@@ -6,6 +6,7 @@ import pytest
 
 from tzMCP.gui_bits.config_manager import Config
 from tzMCP.sessions.export import SessionExportError, SessionExporter
+from tzMCP.sessions.export_service import ExportService
 from tzMCP.sessions.manager import SessionManager
 from tzMCP.sessions.models import SessionState
 
@@ -72,6 +73,27 @@ def test_export_sanitizes_session_error_fields(tmp_path):
         "Proxy failed at https://example.test/?token=[REDACTED] Cookie: [REDACTED]"
     ]
     assert "secret" not in str(session["errors"])
+
+
+def test_failed_host_publication_stays_retryable_after_restart(tmp_path):
+    manager, record = _ended_session(tmp_path)
+    service = ExportService(manager.storage, helper=tmp_path / "helper")
+    archive = service.create_local_archive(record, {"tzMCP": "test"})
+    assert not manager.active_path.exists()
+
+    restarted = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    pending = restarted.list_pending_exports()
+    assert [item.session_id for item in pending] == [record.session_id]
+    assert pending[0].state is SessionState.ENDED
+    retry = ExportService(restarted.storage, helper=tmp_path / "helper").create_local_archive(pending[0])
+
+    assert retry.archive_path == archive.archive_path
+    assert retry.sha256 == archive.sha256
+    assert retry.archive_path.read_bytes() == archive.archive_path.read_bytes()
+    restarted.complete_export(record.session_id, retry.archive_path.name, retry.size, retry.sha256)
+    assert restarted.list_pending_exports() == []
+    follow_up = restarted.create_session(Config(save_dir=tmp_path / "unused"))
+    assert follow_up.state is SessionState.NEW
 
 
 def test_export_rejects_active_session_and_symlinks(tmp_path):

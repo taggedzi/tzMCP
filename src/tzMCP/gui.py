@@ -46,12 +46,30 @@ class MainApp(tk.Tk):
             self.config_manager.save_config(self.config)
         self.session_manager = SessionManager() if is_appliance_mode() else None
         recovered = None
+        pending = []
         recovery_error = None
         try:
-            recovered = self.session_manager.recover_active() if self.session_manager else None
-            if recovered is not None:
-                log_gui.warning("Recovered interrupted session %s", recovered.session_id)
+            if self.session_manager is not None:
+                recovered = self.session_manager.recover_active()
+                pending = list(self.session_manager.list_pending_exports())
+                if (
+                    recovered is not None
+                    and recovered.state in ("ENDED", "INTERRUPTED")
+                    and all(item.session_id != recovered.session_id for item in pending)
+                ):
+                    pending.append(recovered)
+                pending.sort(key=lambda record: record.session_id)
+                if recovered is not None:
+                    log_gui.warning("Recovered interrupted session %s", recovered.session_id)
+                if pending:
+                    log_gui.warning(
+                        "Sessions awaiting export (%d), oldest first: %s",
+                        len(pending),
+                        ", ".join(record.session_id for record in pending),
+                    )
         except Exception as exc:
+            recovered = None
+            pending = []
             recovery_error = f"{type(exc).__name__}: {exc}".rstrip()
             log_gui.exception("Could not recover the previous capture session; manual attention is required.")
         self.proxy_controller = ProxyController(
@@ -79,8 +97,8 @@ class MainApp(tk.Tk):
                 "then review the recovery traceback in the logs before retrying. "
                 "Keep the previous session files for diagnosis.",
             )
-        if recovered is not None:
-            self.browser_tab.restore_recovered_session(recovered)
+        if recovery_error is None and pending:
+            self.browser_tab.restore_pending_sessions(pending)
         # ensure we intercept window-close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
