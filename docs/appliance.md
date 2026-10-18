@@ -65,6 +65,17 @@ completed archive is copied through the controlled `tzmcp-export` share into
 the selected host folder. If copying fails, the completed local archive stays
 inside the VM and can be retried.
 
+The root helper accepts only session names such as
+`20261018T120000Z-abcdef12.zip`. It opens the handoff directories without
+following symlinks, checks their ownership and permissions, and opens the
+single-link regular archive using the `tzmcp` account's permissions. It copies
+from that open descriptor into a private snapshot before temporarily mounting
+the host share; this requires extra guest disk space equal to the archive size.
+Existing host exports are never overwritten. A failed copy
+removes its newly created host file and attempts to unmount the share; captures
+and the local archive remain intact. While copying, the host ZIP is incomplete;
+wait for the guest to report successful export before opening it.
+
 Each archive contains capture files, sanitized session logs, the effective
 configuration, `session.json`, and `SHA256SUMS`. Recompute the listed hashes
 after unpacking. SHA-256 proves file integrity after publication; it does not
