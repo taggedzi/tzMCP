@@ -40,13 +40,15 @@ class MainApp(tk.Tk):
         log_gui.debug(f"Config file: {self.config_file}")
         log_gui.debug(f"Config file exists: {self.config_file.exists()}")
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
-        self.config_manager = ConfigManager()
+        self.config_manager = ConfigManager(self.config_file)
         self.config        = self.config_manager.load_config()
-        self.session_manager = SessionManager()
+        if not is_appliance_mode() and not self.config_file.exists():
+            self.config_manager.save_config(self.config)
+        self.session_manager = SessionManager() if is_appliance_mode() else None
         recovered = None
         recovery_error = None
         try:
-            recovered = self.session_manager.recover_active()
+            recovered = self.session_manager.recover_active() if self.session_manager else None
             if recovered is not None:
                 log_gui.warning("Recovered interrupted session %s", recovered.session_id)
         except Exception as exc:

@@ -175,6 +175,8 @@ For everyday changes, use **Capture Rules**. For code changes, use the [develope
 
 Native GUI and CLI workflows remain development tools. They do not provide the appliance's host boundary. The guide also lists current native-workflow limitations.
 
+The native GUI saves captures directly to the configured `save_dir` and supports repeated Start/Stop cycles without export. Native capture rules use the persistent configuration file, including live reload when enabled. Session recovery, isolated capture directories, and mandatory session export apply only in appliance mode (`TZMCP_APPLIANCE=1`).
+
 | Documentation | Audience |
 | --- | --- |
 | [Appliance guide](docs/appliance.md) | Users installing, capturing, exporting, or recovering sessions |
