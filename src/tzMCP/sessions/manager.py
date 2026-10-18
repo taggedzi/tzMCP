@@ -12,7 +12,7 @@ from tzMCP.gui_bits.config_manager import Config
 from tzMCP.paths import runtime_dir, sessions_dir
 from tzMCP.proxy_runtime import write_config_snapshot
 from tzMCP.sessions.models import SessionRecord, SessionState, validate_session_id
-from tzMCP.sessions.processes import ProcessIdentity, verify_process_identity
+from tzMCP.sessions.processes import ProcessIdentity, stop_owned_process_tree
 from tzMCP.sessions.storage import SessionStorage
 
 
@@ -27,15 +27,47 @@ class SessionManager:
         self.runtime_root.mkdir(parents=True, exist_ok=True)
         self.active_path = self.runtime_root / "active-session.json"
         self.lock_path = self.runtime_root / "active-session.lock"
+        self._owner_lock = None
+
+    def _claim_owner(self) -> None:
+        """Hold an OS lock which is released automatically if the GUI dies."""
+        if self._owner_lock is not None:
+            return
+        handle = (self.runtime_root / "session-owner.lock").open("a+b")
+        try:
+            if os.name == "nt":
+                import msvcrt
+                handle.seek(0)
+                if not handle.read(1):
+                    handle.write(b"0")
+                    handle.flush()
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            handle.close()
+            raise RuntimeError("Another tzMCP GUI owns this session. Close it before retrying.") from exc
+        self._owner_lock = handle
+
+    def _release_owner(self) -> None:
+        if self._owner_lock is not None:
+            self._owner_lock.close()
+            self._owner_lock = None
 
     def _new_id(self) -> str:
         return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + secrets.token_hex(4)
 
     def create_session(self, config: Config) -> SessionRecord:
+        already_owned = self._owner_lock is not None
+        self._claim_owner()
         try:
             fd = self.lock_path.open("x", encoding="ascii")
             fd.close()
         except FileExistsError as exc:
+            if not already_owned:
+                self._release_owner()
             raise RuntimeError("Another tzMCP session is already active") from exc
         try:
             session_id = self._new_id()
@@ -149,20 +181,47 @@ class SessionManager:
             self.lock_path.unlink()
         except FileNotFoundError:
             pass
+        self._release_owner()
 
     def recover_active(self) -> SessionRecord | None:
+        self._claim_owner()
+        try:
+            return self._recover_active()
+        except Exception:
+            self._release_owner()
+            raise
+
+    def _recover_active(self) -> SessionRecord | None:
         if not self.active_path.exists():
+            self._release_owner()
             return None
         session_id = self.active_path.read_text(encoding="ascii").strip()
         validate_session_id(session_id)
         record = self.get(session_id)
+        if record.state is SessionState.RUNNING and "proxy" not in record.process_records:
+            raise RuntimeError(
+                "The running session has no recorded proxy identity. Capture shutdown cannot be verified; "
+                "keep the captures and have an administrator inspect the remaining processes before export."
+            )
+        recovered_browser = None
         for name, raw_identity in record.process_records.items():
             identity = ProcessIdentity.from_dict(raw_identity)
-            # Recovery only reports verified ownership here. Actual process
-            # termination is supplied by the caller once it has a live process
-            # controller; an unverified PID is never treated as owned.
-            if not verify_process_identity(identity):
-                record.warnings.append(f"Could not verify recorded process: {name}")
+            try:
+                if name == "firefox":
+                    from tzMCP.browser.firefox_session import FirefoxSession
+                    from tzMCP.paths import appliance_browser_dir
+                    recovered_browser = FirefoxSession(
+                        Path(identity.executable), appliance_browser_dir(session_id),
+                        self.runtime_root / "unused-ca.pem", 8080,
+                    )
+                    recovered_browser.identity = identity
+                    recovered_browser.stop()
+                else:
+                    stop_owned_process_tree(identity)
+            except Exception as exc:
+                raise RuntimeError(f"Recovery blocked for {name}: {exc}. Captures and profile preserved.") from exc
+        if recovered_browser is not None:
+            recovered_browser.cleanup()
         if record.state in (SessionState.NEW, SessionState.RUNNING):
             record.transition(SessionState.INTERRUPTED)
             record.ended_at = record.ended_at or _utc_now()

@@ -1,4 +1,6 @@
 from types import SimpleNamespace
+import os
+from unittest.mock import Mock
 
 import pytest
 
@@ -9,6 +11,27 @@ from tzMCP.browser.firefox_session import (
     FirefoxSessionError,
 )
 from tzMCP.sessions.processes import ProcessIdentity
+
+
+def test_failed_shutdown_wait_preserves_profile_and_identity(tmp_path, monkeypatch):
+    session = FirefoxSession(tmp_path / "firefox", tmp_path / "browser", tmp_path / "ca.pem", 8888)
+    session.profile_dir.mkdir(parents=True)
+    identity = ProcessIdentity(42, "/firefox", 123, "owner")
+    session.identity = identity
+    root = Mock(pid=42)
+    root.children.return_value = []
+    monkeypatch.setattr(firefox_session_module, "verify_process_identity", lambda saved: True)
+    monkeypatch.setattr(firefox_session_module.psutil, "Process", lambda pid: root)
+    monkeypatch.setattr(firefox_session_module.psutil, "process_iter", lambda attrs: [])
+    monkeypatch.setattr(firefox_session_module.ProcessIdentity, "from_process", lambda process: identity)
+    wait = Mock(return_value=([], [root]))
+    monkeypatch.setattr(firefox_session_module.psutil, "wait_procs", wait)
+    with pytest.raises(FirefoxSessionError, match="did not exit"):
+        session.cleanup()
+    assert session.profile_dir.exists()
+    assert session.identity is identity
+    assert wait.call_count == 2
+    root.kill.assert_called_once()
 
 
 def _runner(calls):
@@ -134,10 +157,12 @@ def test_stop_finds_snap_firefox_after_launcher_executable_changes(tmp_path, mon
     monkeypatch.setattr(
         firefox_session_module,
         "verify_process_identity",
-        lambda identity: identity.pid == 77 and identity.executable != "/usr/bin/snap",
+        lambda identity: identity.pid in (77, 78) and identity.executable != "/usr/bin/snap",
     )
     monkeypatch.setattr(firefox_session_module.psutil, "process_iter", lambda attrs: iter((browser,)))
     monkeypatch.setattr(firefox_session_module.psutil, "Process", lambda pid: browser if pid == 77 else child)
+    if os.name == "posix":
+        monkeypatch.setattr(os, "getsid", lambda pid: 77)
     monkeypatch.setattr(firefox_session_module.psutil, "wait_procs", lambda processes, timeout: (processes, []))
 
     session.stop()

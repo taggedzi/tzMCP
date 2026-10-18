@@ -104,6 +104,20 @@ def test_recovered_session_is_exportable_before_a_new_session_starts():
     assert tab.export_btn.options["state"] == "disabled"
 
 
+def test_recovery_failure_keeps_controls_disabled_on_later_refresh():
+    class Widget:
+        def config(self, **options):
+            self.state = options["state"]
+
+    tab = BrowserTab.__new__(BrowserTab)
+    tab.recovery_error = "Close the original GUI before retrying"
+    for name in ("start_btn", "stop_btn", "launch_btn", "export_btn"):
+        setattr(tab, name, Widget())
+    tab._update_launch_state()
+    assert all(getattr(tab, name).state == "disabled" for name in (
+        "start_btn", "stop_btn", "launch_btn", "export_btn"
+    ))
+
 def test_main_app_attaches_recovered_session_after_building_the_gui():
     gui_module = Path(__file__).parents[2] / "src" / "tzMCP" / "gui.py"
     source = gui_module.read_text(encoding="utf-8")

@@ -89,7 +89,16 @@ guest paths.
 
 If the GUI or VM stops unexpectedly, reopen tzMCP. It will preserve captured
 files, recover the active session as `INTERRUPTED`, and offer it for export
-after owned processes have been handled. Disk-full and export-copy failures
+only after verified browser and proxy processes have stopped and exited.
+A second GUI cannot recover a session while its original GUI is still alive.
+If ownership cannot be verified or a process will not stop, recovery blocks
+export and preserves the session and Firefox profile. Close the original GUI
+or stop the remaining capture processes, then reopen tzMCP to retry. Do not
+delete session locks or profiles to bypass this check.
+Older running sessions without a saved proxy identity require administrator
+inspection; tzMCP cannot safely infer which proxy process belongs to them.
+
+Disk-full and export-copy failures
 must not delete captured evidence; free space and retry.
 
 If Activity reports `No space left on device`, free guest disk space before

@@ -182,6 +182,9 @@ class BrowserTab(ttk.Frame):
                     self.session_manager.storage.session_dir(created_session.session_id)
                     / "metadata" / "capture-config.yaml"
                 )
+                self.proxy_controller.on_process_started = lambda identity: self.session_manager.record_process(
+                    created_session.session_id, "proxy", identity
+                )
             self.proxy_controller.start_proxy()
             if self.session_manager is not None and self.session is not None:
                 self.session = self.session_manager.transition(self.session.session_id, SessionState.RUNNING)
@@ -201,6 +204,8 @@ class BrowserTab(ttk.Frame):
                 except Exception:  # preserve the original startup error
                     log_gui.exception("Could not record the failed startup error.")
                 try:
+                    if self.proxy_controller.process is not None:
+                        self.proxy_controller.stop_proxy()
                     self.session = self.session_manager.transition(created_session.session_id, SessionState.INTERRUPTED)
                 except Exception:  # preserve the original startup error
                     log_gui.exception("Could not mark the failed startup session interrupted.")
@@ -221,6 +226,8 @@ class BrowserTab(ttk.Frame):
                 firefox_error = exc
                 log_gui.exception("Could not safely stop managed Firefox.")
             self.proxy_controller.stop_proxy()
+            if firefox_error:
+                raise RuntimeError(f"Firefox shutdown failed; session preserved: {firefox_error}")
             if self.session_manager is not None and self.session is not None:
                 target = SessionState.INTERRUPTED if firefox_error or interrupted else SessionState.ENDED
                 self.session = self.session_manager.transition(self.session.session_id, target)
@@ -237,7 +244,11 @@ class BrowserTab(ttk.Frame):
             self._update_launch_state()
         except Exception as exc:  # pylint: disable=broad-exception-caught
             log_gui.exception("Could not stop the capture proxy.")
+            self.proxy_state.config(text=f"Shutdown incomplete; captures and profile preserved: {exc}")
+            if self.status_bar:
+                self.status_bar.set_state("error")
             self._append_activity(f"Failed to stop proxy: {exc}", "red")
+            self._update_launch_state()
 
     def _restore_persistent_proxy_config(self):
         if self.persistent_config_path is not None:
@@ -249,8 +260,8 @@ class BrowserTab(ttk.Frame):
             self._stop_managed_firefox()
         except Exception:
             log_gui.exception("Could not safely stop managed Firefox during shutdown.")
-        if self.proxy_controller.process and self.proxy_controller.process.poll() is None:
-            self.proxy_controller.stop_proxy()
+            return
+        self.proxy_controller.stop_proxy()
         if self.session_manager is not None and self.session is not None:
             record = self.session_manager.get(self.session.session_id)
             if record.state in (SessionState.NEW, SessionState.RUNNING):
@@ -258,6 +269,10 @@ class BrowserTab(ttk.Frame):
             self._restore_persistent_proxy_config()
 
     def _update_launch_state(self):
+        if self.__dict__.get("recovery_error"):
+            for button in (self.start_btn, self.stop_btn, self.launch_btn, self.export_btn):
+                button.config(state="disabled")
+            return
         proxy_running = self.proxy_controller.process is not None and self.proxy_controller.process.poll() is None
         managed_launched = is_appliance_mode() and self.__dict__.get("firefox_session") is not None
         allowed = proxy_running and not managed_launched and (is_appliance_mode() or self.safe_browser_acknowledged.get())
@@ -265,8 +280,9 @@ class BrowserTab(ttk.Frame):
         needs_export = self.session is not None and self.session.state in (
             SessionState.ENDED, SessionState.INTERRUPTED
         )
-        self.start_btn.config(state="disabled" if proxy_running or needs_export else "normal")
-        self.stop_btn.config(state="normal" if proxy_running else "disabled")
+        active_session = self.session is not None and self.session.state in (SessionState.NEW, SessionState.RUNNING)
+        self.start_btn.config(state="disabled" if proxy_running or needs_export or active_session else "normal")
+        self.stop_btn.config(state="normal" if proxy_running or active_session else "disabled")
         if hasattr(self, "export_btn"):
             self.export_btn.config(state="normal" if needs_export and not proxy_running else "disabled")
 

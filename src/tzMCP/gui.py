@@ -43,11 +43,14 @@ class MainApp(tk.Tk):
         self.config_manager = ConfigManager()
         self.config        = self.config_manager.load_config()
         self.session_manager = SessionManager()
+        recovered = None
+        recovery_error = None
         try:
             recovered = self.session_manager.recover_active()
             if recovered is not None:
                 log_gui.warning("Recovered interrupted session %s", recovered.session_id)
-        except Exception:
+        except Exception as exc:
+            recovery_error = str(exc)
             log_gui.exception("Could not recover the previous capture session; manual attention is required.")
         self.proxy_controller = ProxyController(
             proxy_executable_path=str(Path(__file__).parent / "save_media.py"),
@@ -62,6 +65,12 @@ class MainApp(tk.Tk):
         start_gui_log_server(self.gui_queue)
         
         self.build_ui()
+        if recovery_error:
+            self.browser_tab.recovery_error = recovery_error
+            self.browser_tab._update_launch_state()
+            self.browser_tab.proxy_state.config(text=f"Recovery blocked: {recovery_error}")
+            from tkinter import messagebox
+            messagebox.showerror("Session recovery blocked", recovery_error)
         if recovered is not None:
             self.browser_tab.restore_recovered_session(recovered)
         # ensure we intercept window-close

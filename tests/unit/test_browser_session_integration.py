@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -8,6 +9,77 @@ from tzMCP.gui_bits.config_manager import Config
 from tzMCP.save_media import MediaSaver
 from tzMCP.sessions.manager import SessionManager
 from tzMCP.sessions.models import SessionState
+from tzMCP.sessions.processes import ProcessIdentity
+from tzMCP.gui_bits import proxy_control
+from tzMCP.gui_bits.proxy_control import ProxyController
+
+
+@pytest.mark.parametrize("action", ["_stop_proxy", "shutdown"])
+def test_shutdown_retry_checks_children_after_parent_exit_before_enabling_export(tmp_path, monkeypatch, action):
+    class Widget:
+        def __init__(self):
+            self.options = {}
+
+        def config(self, **options):
+            self.options.update(options)
+
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    record = manager.create_session(Config(save_dir=tmp_path / "unused"))
+    identity = ProcessIdentity(42, "/proxy", 123, "owner", session_id=42)
+    manager.record_process(record.session_id, "proxy", identity)
+    record = manager.transition(record.session_id, SessionState.RUNNING)
+    capture = manager.storage.session_dir(record.session_id) / "capture" / "keep.bin"
+    capture.write_bytes(b"captured evidence")
+    controller = ProxyController(str(tmp_path / "addon.py"))
+    process = Mock()
+    process.poll.return_value = None
+    controller.process = process
+    controller.identity = identity
+    stop_tree = Mock(side_effect=[
+        RuntimeError("Capture spawned more processes"),
+        RuntimeError("Capture children still alive"),
+        None,
+    ])
+    monkeypatch.setattr(proxy_control, "stop_owned_process_tree", stop_tree)
+    monkeypatch.setattr(browser_tab_module, "is_appliance_mode", lambda: True)
+
+    tab = BrowserTab.__new__(BrowserTab)
+    tab.session_manager = manager
+    tab.session = record
+    tab.firefox_session = None
+    tab.proxy_controller = controller
+    tab.persistent_config_path = tmp_path / "persistent.yaml"
+    tab.status_bar = None
+    tab._append_activity = lambda *_args: None
+    for name in ("start_btn", "stop_btn", "launch_btn", "export_btn", "proxy_state"):
+        setattr(tab, name, Widget())
+
+    for attempt in range(2):
+        if action == "shutdown":
+            with pytest.raises(RuntimeError, match="Capture"):
+                tab.shutdown()
+        else:
+            tab._stop_proxy()
+        tab._update_launch_state()
+        assert stop_tree.call_count == attempt + 1
+        assert controller.identity is identity
+        assert controller.process is process
+        assert manager.get(record.session_id).state is SessionState.RUNNING
+        assert manager.active_path.exists()
+        assert manager.lock_path.exists()
+        assert tab.export_btn.options["state"] == "disabled"
+        assert capture.read_bytes() == b"captured evidence"
+        process.poll.return_value = 0
+
+    getattr(tab, action)()
+    tab._update_launch_state()
+    assert stop_tree.call_count == 3
+    assert controller.identity is None
+    assert controller.process is None
+    expected = SessionState.INTERRUPTED if action == "shutdown" else SessionState.ENDED
+    assert manager.get(record.session_id).state is expected
+    assert not manager.active_path.exists()
+    assert tab.export_btn.options["state"] == "normal"
 
 
 def test_session_manager_assigns_capture_config_to_proxy(
@@ -40,6 +112,8 @@ def test_session_manager_assigns_capture_config_to_proxy(
         stop_proxy=lambda: None,
     )
     tab.persistent_config_path = tmp_path / "persistent.yaml"
+    identity = ProcessIdentity(42, str(tmp_path / "proxy"), 123, "owner")
+    tab.proxy_controller.start_proxy = lambda: tab.proxy_controller.on_process_started(identity)
     tab.session = None
     tab.start_btn = SimpleNamespace(config=lambda **_: None)
     tab.stop_btn = SimpleNamespace(config=lambda **_: None)
@@ -52,6 +126,7 @@ def test_session_manager_assigns_capture_config_to_proxy(
     tab._start_proxy()
 
     assert tab.session.state is SessionState.RUNNING
+    assert tab.session.process_records["proxy"] == identity.to_dict()
     assert tab.proxy_controller.config_path.name == "capture-config.yaml"
     assert tab.proxy_controller.proxy_port == 9191
     monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))
