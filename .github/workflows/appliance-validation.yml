@@ -30,7 +30,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes shellcheck
           shellcheck appliance/provisioning/*.sh \
-            appliance/files/tzmcp-export-helper appliance/files/tzmcp-display-mode
+            appliance/files/tzmcp-display-mode
+      - name: Check Python export helper
+        run: |
+          python3 -I -c 'from pathlib import Path; p = Path("appliance/files/tzmcp-export-helper"); compile(p.read_bytes(), str(p), "exec")'
+          sudo python3 -I -m unittest discover -s tests/unit -p test_export_helper.py -v
 
   packer:
     name: Build wheel and validate Packer configuration
