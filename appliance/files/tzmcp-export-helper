@@ -1,48 +1,129 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -I
+"""Publish a descriptor opened with the capture account's permissions."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
 
-EXPORT_ROOT=/var/lib/tzmcp/export-ready
-MOUNT_POINT=/run/tzmcp-export
-SHARE_NAME=tzmcp-export
+EXPORT_ROOT = Path("/var/lib/tzmcp/export-ready")
+MOUNT_POINT = Path("/run/tzmcp-export")
+ARCHIVE_NAME = re.compile(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}\.zip", re.ASCII)
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C"}
 
-fail() { echo "{\"ok\":false,\"error\":\"$1\"}"; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || fail "root_required"
-[ "$#" -eq 1 ] || fail "one_archive_basename_required"
-archive_name=$1
-case "$archive_name" in
-    ""|.*|*/*|*\\*|*..*|*[!A-Za-z0-9._-]*) fail "invalid_archive_name" ;;
-esac
+def open_archive(name, root, account):
+    """Pin directories and file; never reopen a validated pathname as root."""
+    if not ARCHIVE_NAME.fullmatch(name):
+        raise ValueError("invalid_archive_name")
+    uid, gid = account.pw_uid, account.pw_gid
+    if uid == 0:
+        raise ValueError("invalid_source_account")
+    old_uid, old_gid, groups = os.geteuid(), os.getegid(), os.getgroups()
+    directory = source = None
+    try:
+        # Remove inherited root groups as well as effective root credentials.
+        os.setgroups([])
+        os.setegid(gid)
+        os.seteuid(uid)
+        directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+        parts = root.parts[1:]
+        for index, part in enumerate(parts):
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=directory)
+            os.close(directory)
+            directory = child
+            info = os.fstat(directory)
+            owner = uid if index >= len(parts) - 2 else 0
+            if info.st_uid != owner or info.st_mode & 0o022:
+                raise ValueError("unsafe_source_directory")
+        source = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                         dir_fd=directory)
+        info = os.fstat(source)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_nlink != 1:
+            raise ValueError("unsafe_source_file")
+        result, source = source, None
+        return result
+    finally:
+        if source is not None:
+            os.close(source)
+        if directory is not None:
+            os.close(directory)
+        os.seteuid(old_uid)
+        os.setegid(old_gid)
+        os.setgroups(groups)
 
-source="$EXPORT_ROOT/$archive_name"
-[ -f "$source" ] || fail "archive_not_found"
-[ ! -L "$source" ] || fail "archive_symlink"
-source_real=$(realpath -e -- "$source") || fail "archive_path_invalid"
-root_real=$(realpath -e -- "$EXPORT_ROOT") || fail "export_root_invalid"
-case "$source_real" in
-    "$root_real"/*) ;;
-    *) fail "archive_outside_export_root";;
-esac
 
-[ ! -L "$MOUNT_POINT" ] || fail "mount_point_symlink"
-install -d -m 700 "$MOUNT_POINT"
-mount -t vboxsf -o nosuid,nodev,noexec "$SHARE_NAME" "$MOUNT_POINT"
-mounted=1
-cleanup() {
-    if [ "${mounted:-0}" -eq 1 ]; then
-        umount "$MOUNT_POINT" || true
-    fi
-}
-trap cleanup EXIT HUP INT TERM
+def command(*args):
+    subprocess.run(args, check=True, env=ENV, stdout=subprocess.DEVNULL)
 
-destination="$MOUNT_POINT/$archive_name"
-[ ! -e "$destination" ] || fail "destination_exists"
-[ ! -L "$destination" ] || fail "destination_symlink"
-partial="$destination.partial"
-cp -- "$source_real" "$partial"
-sync -f "$partial" 2>/dev/null || sync
-mv -- "$partial" "$destination"
-sync -f "$MOUNT_POINT" 2>/dev/null || sync
-mounted=0
-umount "$MOUNT_POINT"
-printf '{"ok":true,"archive":"%s"}\n' "$archive_name"
+
+def interrupted(signum, frame):
+    raise RuntimeError("export_interrupted")
+
+
+def publish(name, source):
+    MOUNT_POINT.mkdir(mode=0o700, exist_ok=True)
+    directory = os.open(MOUNT_POINT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    mounted = False
+    try:
+        info = os.fstat(directory)
+        if info.st_uid != 0 or info.st_mode & 0o077:
+            raise ValueError("unsafe_mount_point")
+        fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if os.path.ismount(MOUNT_POINT):
+            raise ValueError("share_already_mounted")
+        command("/usr/bin/mount", "-t", "vboxsf", "-o", "nosuid,nodev,noexec",
+                "tzmcp-export", str(MOUNT_POINT))
+        mounted = True
+        destination = MOUNT_POINT / name
+        # Exclusive creation also rejects dangling symlinks. Never truncate an
+        # existing host file. A failed copy removes only our newly created file.
+        fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        try:
+            with os.fdopen(fd, "wb") as output:
+                shutil.copyfileobj(source, output)
+                output.flush()
+                os.fsync(output.fileno())
+        except BaseException:
+            destination.unlink()
+            raise
+    finally:
+        try:
+            if mounted:
+                command("/usr/bin/umount", str(MOUNT_POINT))
+        finally:
+            os.close(directory)
+
+
+def main():
+    try:
+        if os.getuid() != 0:
+            raise ValueError("root_required")
+        if len(sys.argv) != 2:
+            raise ValueError("one_archive_basename_required")
+        for sig in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            signal.signal(sig, interrupted)
+        fd = open_archive(sys.argv[1], EXPORT_ROOT, pwd.getpwnam("tzmcp"))
+        # Snapshot before mounting. Guest writes can change bytes, but cannot
+        # redirect reads from the pinned descriptor to a privileged inode.
+        with os.fdopen(fd, "rb") as source, tempfile.TemporaryFile(dir="/var/tmp") as snapshot:
+            shutil.copyfileobj(source, snapshot)
+            snapshot.seek(0)
+            publish(sys.argv[1], snapshot)
+        print(json.dumps({"ok": True, "archive": sys.argv[1]}))
+        return 0
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
