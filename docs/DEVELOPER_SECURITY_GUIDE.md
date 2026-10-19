@@ -166,9 +166,9 @@ Omit `save_dir` for the default `<data-root>/cache`. To set it for CLI capture, 
 | `blacklist` | Two patterns shown above; a matching block rejects even an allow-listed domain. |
 | `filter_file_size` | Enabled; inclusive 10,240–157,286,400 byte range. Negative minimum is clamped to zero; maximum is raised to at least minimum. |
 | `filter_pixel_dimensions` | Defaults shown above; dimension values are clamped nonnegative and maxima raised to minima. See the `enabled` caveat above. |
-| `log_to_file` | `false`; enables rotating component files when logging is configured. |
+| `log_to_file` | `false`; no component log files are written, so a session export has no proxy log payload. `true` writes rotating component files into the active log directory. |
 | `log_level` | `INFO`; uppercased, with invalid levels normalized to `INFO`. Console handlers retain warnings/errors even with a quieter configured level. |
-| `enable_persistent_dedup` | `false`; in-memory hashes per proxy run. `true` uses `<data-root>/logs/hashes_seen.sqlite` across runs/sessions. |
+| `enable_persistent_dedup` | `false`; in-memory hashes per proxy run. `true` uses `<data-root>/logs/hashes_seen.sqlite` across runs and sessions. A session log override does not move this file. |
 | `auto_reload_config` | `true` in the model; disabled in appliance mode. Snapshot launches limit which file is actually observed. |
 
 MIME groups come from `mime_categories.py` and the maintained `mime_data_minimal.py` mapping. They are finite sets, not every possible MIME with a matching prefix. HTML, CSS, and JavaScript use `text`; there are no standalone `html`, `css`, or `js` groups. No generic archive group is exposed.
@@ -248,7 +248,7 @@ Config-file values are validated during load; CLI overrides are applied afterwar
 └── sessions/<session-id>/
     ├── state.json              Internal state including process records
     ├── capture/                Saved response bodies
-    ├── logs/                   Exportable session logs, when populated
+    ├── logs/                   Proxy component logs when file logging is enabled
     ├── metadata/capture-config.yaml
     ├── browser/                Reserved session browser directory
     └── staging/                Reserved working directory
@@ -268,12 +268,16 @@ Native mitmproxy runs without an explicit `confdir` and use mitmproxy's own defa
 | `TZMCP_FIREFOX_PATH` | Managed Firefox executable override; otherwise discovered on `PATH`. |
 | `TZMCP_CONFIG_PATH` | Explicit addon config; a missing explicit file fails startup. |
 | `TZMCP_AUTO_RELOAD` | Launch-side watcher control; `0` disables it. |
-| `TZMCP_LOG_DIR` | Passed by launch code, but current log setup still uses `paths.logs_dir()`. |
+| `TZMCP_LOG_DIR` | Component-log directory for this process. Launch code sets it from the proxy spec before logging starts. Unset means `<data-root>/logs`. |
 | `TZMCP_MITM_CONF_DIR` | Passed in launch environment; actual CA selection is through mitmdump's explicit `confdir` argument. |
 
-Logging currently writes component files under global `logs/`, not automatically into each session's `logs/`. An export includes only logs actually present in that session directory. Do not promise a complete per-session audit log from the current wiring.
+`paths.logs_dir()` follows `TZMCP_LOG_DIR` when that variable is set. An appliance proxy launch points it at the active session's `logs/` directory before the addon process starts, then restores the controller to `<data-root>/logs` when the session stops. The next launch does not keep writing into the previous session. Native GUI and CLI passes use `default_logs_dir()` and do not adopt a session override.
 
-File logging uses rotation at 5,000,000 bytes with three backups per component. GUI startup cleans global logs older than seven days and native profile directories older than three days. This is not session retention management; completed captures and exports can keep consuming disk space. Keep persistent deduplication's database location in mind when reviewing cleanup policy.
+With `log_to_file` enabled, the proxy writes `tzMCP_proxy.log`, `tzMCP_browser.log`, and `tzMCP_gui.log`, plus rotation backups, into that directory. With file logging disabled, no component log files are created. The export then has no proxy log payload. Console warnings and errors are still emitted. That disabled behavior is intentional.
+
+Export reads only the session's own `logs/` directory. It sanitizes text logs and skips SQLite databases, including `hashes_seen.sqlite` and its sidecars. Persistent deduplication stays at `<data-root>/logs/hashes_seen.sqlite` across sessions.
+
+File logging uses rotation at 5,000,000 bytes with three backups per component. GUI startup cleans global logs older than seven days and native profile directories older than three days. This is not session retention management; completed captures and exports can keep consuming disk space. The cleanup path is the persistent log directory, not the active session override.
 
 ## Session lifecycle and recovery
 

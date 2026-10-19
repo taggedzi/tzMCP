@@ -30,7 +30,7 @@ def test_main_app_initializes_after_session_recovery(monkeypatch, tmp_path, outc
     monkeypatch.setattr(gui.tk.Tk, "__init__", lambda self: None)
     monkeypatch.setattr(gui.MainApp, "title", lambda *args: None)
     monkeypatch.setattr(gui.MainApp, "protocol", lambda *args: None)
-    for name in ("config_dir", "profiles_dir", "logs_dir", "ca_dir"):
+    for name in ("config_dir", "profiles_dir", "default_logs_dir", "ca_dir"):
         monkeypatch.setattr(gui, name, lambda name=name: tmp_path / name)
     monkeypatch.setattr(gui, "is_appliance_mode", lambda: appliance_mode)
     monkeypatch.setattr(gui, "ensure_runtime_dirs", Mock())
@@ -114,7 +114,7 @@ def test_native_start_persists_missing_defaults_without_rewriting_existing_confi
     monkeypatch.setattr(gui.tk.Tk, "__init__", lambda self: None)
     monkeypatch.setattr(gui.MainApp, "title", lambda *_: None)
     monkeypatch.setattr(gui.MainApp, "protocol", lambda *_: None)
-    for name in ("config_dir", "profiles_dir", "logs_dir"):
+    for name in ("config_dir", "profiles_dir", "default_logs_dir"):
         monkeypatch.setattr(gui, name, lambda name=name: tmp_path / name)
     for name in ("clean_old_profiles", "clean_old_logs", "start_gui_log_server"):
         monkeypatch.setattr(gui, name, Mock())
@@ -425,7 +425,7 @@ def test_startup_restores_every_pending_session_oldest_first(monkeypatch, tmp_pa
     monkeypatch.setattr(gui.tk.Tk, "__init__", lambda self: None)
     monkeypatch.setattr(gui.MainApp, "title", lambda *args: None)
     monkeypatch.setattr(gui.MainApp, "protocol", lambda *args: None)
-    for name in ("config_dir", "profiles_dir", "logs_dir", "ca_dir"):
+    for name in ("config_dir", "profiles_dir", "default_logs_dir", "ca_dir"):
         monkeypatch.setattr(gui, name, lambda name=name: tmp_path / name)
     monkeypatch.setattr(gui, "is_appliance_mode", lambda: True)
     monkeypatch.setattr(gui, "ensure_runtime_dirs", Mock())

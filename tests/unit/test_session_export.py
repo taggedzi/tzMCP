@@ -2,12 +2,17 @@ import hashlib
 import json
 import os
 import random
+import sqlite3
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from tzMCP.common_utils import log_config
 from tzMCP.gui_bits.config_manager import Config
+from tzMCP.paths import default_logs_dir
+from tzMCP.save_media_utils import config_provider, hash_tracker
 from tzMCP.sessions.export import SessionExportError, SessionExporter
 from tzMCP.sessions.export_service import ExportService
 from tzMCP.sessions.log_sanitizer import SANITIZER_RAM_LIMIT, StreamingLogSanitizer, sanitize_log
@@ -59,6 +64,102 @@ def test_exported_capture_config_omits_absolute_guest_save_path(tmp_path):
     assert str(manager.storage.session_dir(record.session_id)).encode() not in config
     assert b"save_dir" not in session
     assert str(manager.storage.session_dir(record.session_id)).encode() not in session
+
+
+def _close_component_logs():
+    for logger in (log_config.log_proxy, log_config.log_browser, log_config.log_gui):
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
+
+
+def _ended_record(manager, tmp_path, name):
+    record = manager.create_session(Config(save_dir=tmp_path / name))
+    manager.transition(record.session_id, SessionState.RUNNING)
+    manager.transition(record.session_id, SessionState.ENDED)
+    return manager.get(record.session_id)
+
+
+def _write_session_proxy_log(monkeypatch, log_dir: Path, *lines: str):
+    monkeypatch.setenv("TZMCP_LOG_DIR", str(log_dir))
+    config_provider.set_config(SimpleNamespace(log_to_file=True, log_level="INFO"))
+    log_config.setup_logging()
+    for line in lines:
+        log_config.log_proxy.info(line)
+
+
+def test_export_contains_only_the_active_sessions_sanitized_proxy_logs(tmp_path, monkeypatch):
+    monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    first = _ended_record(manager, tmp_path, "unused-a")
+    second = _ended_record(manager, tmp_path, "unused-b")
+    first_logs = manager.storage.session_dir(first.session_id) / "logs"
+    second_logs = manager.storage.session_dir(second.session_id) / "logs"
+    global_logs = default_logs_dir()
+    global_logs.mkdir(parents=True, exist_ok=True)
+    (global_logs / "tzMCP_proxy.log").write_text("global-log-marker\n", encoding="utf-8")
+
+    try:
+        _write_session_proxy_log(
+            monkeypatch, first_logs, "session-a-marker", "Authorization: Bearer secret-a"
+        )
+        _write_session_proxy_log(monkeypatch, second_logs, "session-b-only")
+        database = sqlite3.connect(first_logs / "hashes_seen.sqlite")
+        database.execute("CREATE TABLE hashes (hash TEXT PRIMARY KEY)")
+        database.commit()
+        database.close()
+        (first_logs / "renamed.db").write_bytes((first_logs / "hashes_seen.sqlite").read_bytes())
+        (first_logs / "hashes_seen.sqlite-wal").write_bytes(b"wal-bytes")
+    finally:
+        _close_component_logs()
+
+    hash_tracker.init_hash_db(persist=True)
+    try:
+        assert (global_logs / "hashes_seen.sqlite").is_file()
+        assert not (first_logs / "hashes_seen.sqlite").samefile(global_logs / "hashes_seen.sqlite")
+    finally:
+        hash_tracker.shutdown_hash_db()
+
+    first_archive = SessionExporter(manager.storage).export(first, tmp_path / "exports-a")
+    second_archive = SessionExporter(manager.storage).export(second, tmp_path / "exports-b")
+
+    with zipfile.ZipFile(first_archive.archive_path) as archive:
+        names = archive.namelist()
+        proxy_log = archive.read(f"{first.session_id}/logs/tzMCP_proxy.log")
+        archived = b"\n".join(archive.read(name) for name in names if name != "SHA256SUMS")
+    assert f"{first.session_id}/logs/tzMCP_proxy.log" in names
+    assert b"session-a-marker" in proxy_log
+    assert b"Authorization: [REDACTED]" in proxy_log
+    assert b"secret-a" not in proxy_log
+    assert b"session-b-only" not in archived
+    assert b"global-log-marker" not in archived
+    assert b"SQLite format 3" not in archived
+    assert not any(name.endswith(("hashes_seen.sqlite", ".sqlite", ".db", ".sqlite-wal")) for name in names)
+
+    with zipfile.ZipFile(second_archive.archive_path) as archive:
+        second_names = archive.namelist()
+        second_log = archive.read(f"{second.session_id}/logs/tzMCP_proxy.log")
+    assert b"session-b-only" in second_log
+    assert b"session-a-marker" not in second_log
+    assert b"global-log-marker" not in second_log
+    assert not any("hashes_seen.sqlite" in name for name in second_names)
+
+
+def test_disabled_file_logging_leaves_session_logs_empty(tmp_path, monkeypatch):
+    monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))
+    session_logs = tmp_path / "session" / "logs"
+    monkeypatch.setenv("TZMCP_LOG_DIR", str(session_logs))
+    config_provider.set_config(SimpleNamespace(log_to_file=False, log_level="INFO"))
+    try:
+        log_config.setup_logging()
+        log_config.log_proxy.info("session-marker-should-not-be-stored")
+        log_config.log_proxy.warning("warning-should-not-be-stored")
+    finally:
+        _close_component_logs()
+
+    assert session_logs.is_dir()
+    assert list(session_logs.glob("tzMCP_*")) == []
+    assert list(default_logs_dir().glob("tzMCP_*")) == []
 
 
 def test_export_sanitizes_session_error_fields(tmp_path):

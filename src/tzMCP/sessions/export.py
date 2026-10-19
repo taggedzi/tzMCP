@@ -52,6 +52,31 @@ class _FileMember:
     size: int
 
 
+_SQLITE_MAGIC = b"SQLite format 3\x00"
+_DATABASE_SUFFIXES = {".sqlite", ".sqlite3", ".db"}
+_DATABASE_ENDINGS = (
+    ".sqlite-wal",
+    ".sqlite-shm",
+    ".sqlite-journal",
+    ".db-wal",
+    ".db-shm",
+    ".db-journal",
+)
+
+
+def _is_exportable_log(path: Path) -> bool:
+    """Keep text logs and leave deduplication databases out of the archive."""
+    name = path.name.lower()
+    if name.startswith("hashes_seen.sqlite") or path.suffix.lower() in _DATABASE_SUFFIXES:
+        return False
+    if name.endswith(_DATABASE_ENDINGS):
+        return False
+    with path.open("rb") as handle:
+        if handle.read(len(_SQLITE_MAGIC)).startswith(_SQLITE_MAGIC):
+            return False
+    return True
+
+
 def _safe_member(name: str) -> str:
     path = PurePosixPath(name)
     if path.is_absolute() or any(part in ("", ".", "..") for part in path.parts):
@@ -84,7 +109,7 @@ class SessionExporter:
     def __init__(self, storage: SessionStorage):
         self.storage = storage
 
-    def _file_members(self, root: Path, member_root: str, sanitize: bool) -> list[_FileMember]:
+    def _file_members(self, root: Path, member_root: str, sanitize: bool, include=None) -> list[_FileMember]:
         if not root.exists():
             return []
         resolved_root = root.resolve()
@@ -98,6 +123,8 @@ class SessionExporter:
                 raise SessionExportError(f"Special or multiply-linked file is not exportable: {path}")
             if not path.resolve().is_relative_to(resolved_root):
                 raise SessionExportError(f"Path escaped export root: {path}")
+            if include is not None and not include(path):
+                continue
             member = _safe_member(f"{member_root}/{relative}")
             members.append(_FileMember(member, path, sanitize, info.st_size))
         return members
@@ -109,7 +136,11 @@ class SessionExporter:
         prefix = record.session_id
         members: list[_FileMember | _MemoryMember] = []
         members.extend(self._file_members(session_root / "capture", f"{prefix}/capture", sanitize=False))
-        members.extend(self._file_members(session_root / "logs", f"{prefix}/logs", sanitize=True))
+        # This session's logs only. Other sessions and the global log
+        # directory are not copied in. Database files are not text logs.
+        members.extend(self._file_members(
+            session_root / "logs", f"{prefix}/logs", sanitize=True, include=_is_exportable_log
+        ))
         config = session_root / "metadata" / "capture-config.yaml"
         if config.is_symlink() or not config.is_file():
             raise SessionExportError("Session configuration snapshot is missing or unsafe")

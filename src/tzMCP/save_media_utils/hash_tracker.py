@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 from pathlib import Path
 from tzMCP.common_utils.log_config import setup_logging, log_proxy
-from tzMCP.paths import logs_dir
+from tzMCP.paths import default_logs_dir
 
 setup_logging()
 _db = None
@@ -19,7 +19,7 @@ def init_hash_db(persist: bool = True, db_path: Path = None):
         return
 
     if db_path is None:
-        db_path = logs_dir() / "hashes_seen.sqlite"
+        db_path = default_logs_dir() / "hashes_seen.sqlite"
         log_proxy.debug(f"Dedupe DB setups at: {db_path}.")
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
