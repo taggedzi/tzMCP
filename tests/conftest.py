@@ -46,6 +46,12 @@ def _silence_gui_log(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _clear_session_log_override(monkeypatch):
+    """Keep tests off a developer or parent-process session log directory."""
+    monkeypatch.delenv("TZMCP_LOG_DIR", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _default_isolated_save_dir(tmp_path, monkeypatch):
     """Point the default Config.save_dir at tmp_path so any bare Config()
     that gets validated never mkdirs the real cache directory."""

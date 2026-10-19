@@ -28,6 +28,7 @@ class BrowserTab(ttk.Frame):
         self.session_manager = session_manager if is_appliance_mode() else None
         self.config = config
         self.persistent_config_path = Path(persistent_config_path) if persistent_config_path else None
+        self._persistent_log_dir = getattr(proxy_controller, "log_dir", None)
         self.session: SessionRecord | None = None
         self.pending_sessions: list[SessionRecord] = []
         self.firefox_session: FirefoxSession | None = None
@@ -291,6 +292,7 @@ class BrowserTab(ttk.Frame):
                     self.session_manager.storage.session_dir(created_session.session_id)
                     / "metadata" / "capture-config.yaml"
                 )
+                self._use_session_log_dir(created_session.session_id)
                 self.proxy_controller.on_process_started = lambda identity: self.session_manager.record_process(
                     created_session.session_id, "proxy", identity
                 )
@@ -374,9 +376,22 @@ class BrowserTab(ttk.Frame):
             self._append_activity(f"Failed to stop proxy: {exc}", "red")
             self._update_launch_state()
 
+    def _use_session_log_dir(self, session_id: str) -> None:
+        """Send this capture's proxy logs to the session directory.
+
+        The previous destination is remembered so the next launch, including
+        a native or CLI-style controller path, does not keep writing into
+        this session after it ends.
+        """
+        if not hasattr(self, "_persistent_log_dir"):
+            self._persistent_log_dir = getattr(self.proxy_controller, "log_dir", None)
+        self.proxy_controller.log_dir = self.session_manager.storage.session_dir(session_id) / "logs"
+
     def _restore_persistent_proxy_config(self):
         if self.persistent_config_path is not None:
             self.proxy_controller.config_path = self.persistent_config_path.resolve()
+        if hasattr(self, "_persistent_log_dir"):
+            self.proxy_controller.log_dir = self._persistent_log_dir
 
     def shutdown(self):
         """Stop the proxy and preserve an active session as interrupted."""

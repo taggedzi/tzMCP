@@ -46,8 +46,13 @@ class GuiLogHandler(logging.Handler):
 def setup_logging():
     """
     Setup hierarchical logging for tzMCP components.
-    Log files are stored in the user-specific tzMCP data directory.
-    Enable/disable file logging via config: config.log_to_file
+
+    File logs go to ``logs_dir()``, which follows ``TZMCP_LOG_DIR`` when a
+    proxy launch set that variable before this process imported logging.
+    ``config.log_to_file`` enables the rotating component files. When file
+    logging is disabled, no component log files are created. Console
+    warnings and errors are still emitted. That empty file set is what a
+    later session export will find.
     """
     config = get_config()
     enable_file = getattr(config, "log_to_file", False)
@@ -69,9 +74,11 @@ def setup_logging():
         # for the in-app or file log.
         logger.setLevel(min(level, logging.WARNING))
 
-        # Prevent duplicate handlers
-        if logger.hasHandlers():
-            logger.handlers.clear()
+        # Prevent duplicate handlers. Close the previous files so a later
+        # launch can write a different directory on Windows.
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
 
         formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
 

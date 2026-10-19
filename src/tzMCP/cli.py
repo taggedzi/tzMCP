@@ -4,7 +4,7 @@ import sys
 import yaml
 from pathlib import Path
 from tzMCP.gui_bits.config_manager import ConfigManager, Config
-from tzMCP.paths import runtime_dir, logs_dir, ca_dir, ensure_runtime_dirs
+from tzMCP.paths import runtime_dir, default_logs_dir, ca_dir, ensure_runtime_dirs
 from tzMCP.proxy_runtime import ProxyLaunchSpec, write_config_snapshot
 
 def parse_args():
@@ -81,7 +81,7 @@ def main():
     from tzMCP.appliance import is_appliance_mode
     if is_appliance_mode():
         ensure_runtime_dirs()
-    spec = ProxyLaunchSpec(snapshot, config.proxy_port, log_dir=logs_dir(),
+    spec = ProxyLaunchSpec(snapshot, config.proxy_port, log_dir=default_logs_dir(),
                            confdir=ca_dir() if is_appliance_mode() else None,
                            auto_reload=config.auto_reload_config and not is_appliance_mode())
     from tzMCP.proxy_runtime import build_proxy_command, launch_environment

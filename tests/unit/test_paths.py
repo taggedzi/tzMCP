@@ -7,6 +7,7 @@ from tzMCP.paths import (
     config_dir,
     data_dir,
     ensure_runtime_dirs,
+    default_logs_dir,
     export_ready_dir,
     logs_dir,
     profiles_dir,
@@ -35,6 +36,19 @@ def test_runtime_paths_use_configured_data_directory(tmp_path, monkeypatch):
     assert ca_dir() == expected / "ca" / "mitmproxy"
     assert runtime_dir() == expected / "runtime"
     assert export_ready_dir() == expected / "export-ready"
+
+
+def test_log_override_does_not_move_persistent_logs(tmp_path, monkeypatch):
+    monkeypatch.setenv("TZMCP_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.delenv("TZMCP_LOG_DIR", raising=False)
+
+    assert logs_dir() == default_logs_dir() == tmp_path / "data" / "logs"
+    session_logs = tmp_path / "session" / "logs"
+    monkeypatch.setenv("TZMCP_LOG_DIR", str(session_logs))
+    assert logs_dir() == session_logs
+    assert default_logs_dir() == tmp_path / "data" / "logs"
+    monkeypatch.setenv("TZMCP_LOG_DIR", "   ")
+    assert logs_dir() == tmp_path / "data" / "logs"
 
 
 def test_runtime_directories_are_private(tmp_path, monkeypatch):

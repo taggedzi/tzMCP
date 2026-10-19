@@ -33,8 +33,27 @@ def config_dir() -> Path:
     return data_dir() / "config"
 
 
-def logs_dir() -> Path:
+def default_logs_dir() -> Path:
+    """Return the persistent logs directory under the data root.
+
+    Native GUI, CLI, and the deduplication database use this path.
+    ``TZMCP_LOG_DIR`` does not move it.
+    """
     return data_dir() / "logs"
+
+
+def logs_dir() -> Path:
+    """Return the component-log directory for this process.
+
+    ``TZMCP_LOG_DIR`` selects the active session directory when a proxy
+    launch sets it before logging starts. An empty value is ignored.
+    Native and CLI launches pass ``default_logs_dir()`` instead, so their
+    logs stay under the data root.
+    """
+    override = os.environ.get("TZMCP_LOG_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return default_logs_dir()
 
 
 def profiles_dir() -> Path:

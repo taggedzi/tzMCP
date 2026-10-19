@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -172,7 +173,10 @@ def test_native_capture_restarts_with_persistent_config_and_reloads_rules(
     )
     config_manager = ConfigManager(config_path)
     config_manager.save_config(config)
-    controller = SimpleNamespace(config_path=config_path, process=None, proxy_port=8080)
+    native_logs = tmp_path / "native-logs"
+    controller = SimpleNamespace(
+        config_path=config_path, process=None, proxy_port=8080, log_dir=native_logs
+    )
     started_paths = []
 
     def start_proxy():
@@ -210,6 +214,7 @@ def test_native_capture_restarts_with_persistent_config_and_reloads_rules(
     tab.export_btn.config.assert_called_with(state="disabled")
     tab._start_proxy()
     assert started_paths == [config_path, config_path]
+    assert controller.log_dir == native_logs
     assert tab.session is None
     assert manager.method_calls == []
     tab._stop_proxy()
@@ -230,7 +235,11 @@ def test_proxy_start_failure_is_recorded_and_preserves_exportable_session(
 
     manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
 
+    persistent_logs = tmp_path / "global-logs"
+    seen = {}
+
     def fail_start():
+        seen["log_dir"] = tab.proxy_controller.log_dir
         raise RuntimeError("Port 8888 is already in use")
 
     tab = BrowserTab.__new__(BrowserTab)
@@ -238,6 +247,7 @@ def test_proxy_start_failure_is_recorded_and_preserves_exportable_session(
     tab.config = Config(allowed_mime_groups=["image"])
     tab.proxy_controller = SimpleNamespace(
         config_path=tmp_path / "persistent.yaml",
+        log_dir=persistent_logs,
         proxy_port=8888,
         process=None,
         start_proxy=fail_start,
@@ -261,9 +271,67 @@ def test_proxy_start_failure_is_recorded_and_preserves_exportable_session(
     assert saved.errors == ["Proxy startup failed: Port 8888 is already in use"]
     assert not manager.active_path.exists()
     assert tab.proxy_controller.config_path == tab.persistent_config_path.resolve()
+    assert seen["log_dir"] == manager.storage.session_dir(saved.session_id) / "logs"
+    assert tab.proxy_controller.log_dir == persistent_logs
     assert tab.status_bar.options["state"] == "error"
     assert tab.export_btn.options["state"] == "normal"
     assert "Port 8888 is already in use" in tab.proxy_state.options["text"]
+
+
+def test_proxy_log_destination_follows_each_session_and_restores(tmp_path, monkeypatch):
+    class Widget:
+        def config(self, **_options):
+            return None
+
+    monkeypatch.setattr(browser_tab_module, "is_appliance_mode", lambda: True)
+    manager = SessionManager(tmp_path / "sessions", tmp_path / "runtime")
+    persistent_logs = tmp_path / "global-logs"
+    launched = []
+    controller = SimpleNamespace(
+        config_path=tmp_path / "persistent.yaml",
+        log_dir=persistent_logs,
+        proxy_port=8080,
+        process=None,
+    )
+
+    def start_proxy():
+        launched.append(Path(controller.log_dir))
+
+    controller.start_proxy = start_proxy
+    controller.stop_proxy = lambda: None
+    tab = BrowserTab.__new__(BrowserTab)
+    tab.session_manager = manager
+    tab.config = Config(save_dir=tmp_path / "unused")
+    tab.proxy_controller = controller
+    tab.persistent_config_path = tmp_path / "persistent.yaml"
+    tab._persistent_log_dir = persistent_logs
+    tab.session = None
+    tab.firefox_session = None
+    tab.pending_sessions = []
+    tab.status_bar = None
+    tab.start_btn = Widget()
+    tab.stop_btn = Widget()
+    tab.proxy_state = Widget()
+    tab._append_activity = lambda *_args: None
+    monkeypatch.setattr(tab, "_update_launch_state", lambda: None)
+
+    tab._start_proxy()
+    first = tab.session.session_id
+    tab._stop_proxy()
+    assert controller.log_dir == persistent_logs
+    manager.complete_export(first, f"{first}.zip", 1, "a" * 64)
+    tab.session = None
+
+    tab._start_proxy()
+    second = tab.session.session_id
+    tab._stop_proxy()
+
+    assert first != second
+    assert launched == [
+        manager.storage.session_dir(first) / "logs",
+        manager.storage.session_dir(second) / "logs",
+    ]
+    assert controller.log_dir == persistent_logs
 
 
 @pytest.mark.parametrize("error", ["Firefox executable not found", "certutil failed (1)"])

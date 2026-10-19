@@ -82,6 +82,12 @@ configuration, `session.json`, and `SHA256SUMS`. Recompute the listed hashes
 after unpacking. SHA-256 proves file integrity after publication; it does not
 prove who produced the archive or provide a digital signature.
 
+When file logging is enabled, those log entries are the proxy logs written for
+that capture, with recognized secrets removed. When file logging is disabled,
+the proxy does not create log files, so the archive has no log payload. That
+is intentional. Logs from other sessions, the global log directory, and the
+deduplication database are not included.
+
 Archives do not contain the Firefox profile, cookies, history, credentials,
 cache, local storage, mitmproxy CA private key, unrelated sessions, or absolute
 guest paths.

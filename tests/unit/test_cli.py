@@ -1,3 +1,5 @@
+import os
+import sys
 from argparse import Namespace
 from pathlib import Path
 
@@ -57,6 +59,28 @@ def test_build_config_applies_overrides(tmp_path):
     assert cfg.enable_persistent_dedup is True
     assert cfg.proxy_port == 9876
     assert cfg.auto_reload_config is False
+
+
+def test_cli_keeps_data_root_logs_when_session_override_is_set(tmp_path, monkeypatch):
+    data = tmp_path / "data"
+    inherited = tmp_path / "other-session" / "logs"
+    monkeypatch.setenv("TZMCP_DATA_DIR", str(data))
+    monkeypatch.setenv("TZMCP_LOG_DIR", str(inherited))
+    monkeypatch.delenv("TZMCP_APPLIANCE", raising=False)
+    monkeypatch.setattr(sys, "argv", ["tzmcp", "--config", str(tmp_path / "cfg.yaml")])
+    captured = {}
+
+    def mitmdump(argv):
+        captured["log_dir"] = os.environ.get("TZMCP_LOG_DIR")
+        captured["argv"] = list(argv)
+
+    monkeypatch.setattr("mitmproxy.tools.main.mitmdump", mitmdump)
+    cli.main()
+
+    assert Path(captured["log_dir"]) == data / "logs"
+    assert os.environ["TZMCP_LOG_DIR"] == str(inherited)
+    assert (data / "runtime" / "cli-capture-config.yaml").is_file()
+    assert captured["argv"]
 
 
 def test_build_config_min_bytes_zero_is_applied(tmp_path):

@@ -13,7 +13,7 @@ from tzMCP.gui_bits.browser_launcher import cleanup_browsers
 from tzMCP.common_utils.log_config import setup_logging, log_gui
 from tzMCP.common_utils.cleanup_profiles import clean_old_profiles
 from tzMCP.common_utils.cleanup_logs import clean_old_logs
-from tzMCP.paths import config_dir, logs_dir, profiles_dir, ca_dir, ensure_runtime_dirs
+from tzMCP.paths import config_dir, default_logs_dir, profiles_dir, ca_dir, ensure_runtime_dirs
 from tzMCP.appliance import is_appliance_mode
 from tzMCP.sessions.manager import SessionManager
 setup_logging()
@@ -27,7 +27,7 @@ class MainApp(tk.Tk):
 
         self.config_file = config_dir() / "media_proxy_config.yaml"
         profile_root = profiles_dir()
-        log_dir = logs_dir()
+        log_dir = default_logs_dir()
 
         if is_appliance_mode():
             ensure_runtime_dirs()
