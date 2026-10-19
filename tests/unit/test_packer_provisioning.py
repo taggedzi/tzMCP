@@ -58,7 +58,7 @@ def test_base_provisioning_installs_display_server_and_greeter():
     assert "python3-tk" in script
     assert "virtualbox-guest-utils" in script
     assert "virtualbox-guest-x11" in script
-    for package in ("ristretto", "parole", "mousepad", "pulseaudio", "pavucontrol",
+    for package in ("ristretto", "tumbler", "parole", "mousepad", "pulseaudio", "pavucontrol",
                     "gstreamer1.0-pulseaudio", "fonts-dejavu-core", "fonts-noto-core",
                     "gnupg", "procps", "unattended-upgrades"):
         assert package in script.split()

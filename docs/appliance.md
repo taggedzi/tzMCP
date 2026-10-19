@@ -78,6 +78,7 @@ that image. VirtualBox rejects attempts to shrink a disk.
 3. Return to **Capture Session** and select **Start proxy**.
 4. Select **Launch Firefox**. Firefox uses a new temporary profile and the
    appliance’s private loopback proxy.
+   If Firefox shows its first-run welcome screen, select **Continue**.
 5. Browse only the material appropriate for interception. HTTPS traffic is
    decrypted inside the VM; never enter passwords, payment details, recovery
    codes, or other sensitive credentials during capture.
@@ -95,6 +96,8 @@ text. Right-click a file and choose **Open With** if needed. Some media formats
 or incomplete streaming segments may not play. Audio playback is enabled;
 microphone input is disabled. Volume controls and the terminal remain available
 for adjustment and troubleshooting.
+If a preview is quiet, raise the guest volume using the speaker icon and check
+the player's own volume control. The guest and host have separate volume levels.
 
 ## Export
 

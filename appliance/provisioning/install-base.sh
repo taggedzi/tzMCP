@@ -9,7 +9,7 @@ apt-get install -y --no-install-recommends \
     xfce4 xfce4-terminal lightdm lightdm-gtk-greeter \
     xserver-xorg-core xserver-xorg-input-libinput xserver-xorg-video-vmware \
     dbus-x11 x11-xserver-utils fonts-dejavu-core fonts-noto-core \
-    ristretto parole mousepad pulseaudio pavucontrol gstreamer1.0-pulseaudio \
+    ristretto tumbler parole mousepad pulseaudio pavucontrol gstreamer1.0-pulseaudio \
     libnss3-tools python3.12-venv python3-tk \
     virtualbox-guest-utils virtualbox-guest-x11 \
     ca-certificates curl gnupg sudo procps util-linux cloud-guest-utils \

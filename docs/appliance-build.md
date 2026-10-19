@@ -12,7 +12,8 @@ New builds use a 10 GiB virtual disk and Ubuntu Server's minimized installation
 source (`ubuntu-server-minimal`). Keep the pinned ISO's source ID checked against
 `casper/install-sources.yaml` when changing ISOs. The desktop remains Xfce,
 installed without recommended extras; Ristretto, Parole, and Mousepad provide
-local image, audio/video, and text inspection. The standalone system pip is
+local image, audio/video, and text inspection. Tumbler supplies image thumbnails
+without a first-run missing-service warning. The standalone system pip is
 omitted; the application's venv provides its own pip. Fonts, audio/volume
 controls, guest integration, and unattended updates are explicitly installed
 rather than relying on the full server installation. tzMCP starts at desktop
