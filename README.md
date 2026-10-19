@@ -44,7 +44,7 @@ Captured files may contain harmful content. Treat exports as untrusted downloads
 
 ## Get the appliance ready
 
-The intended host is **64-bit Windows with VirtualBox 7.1 or newer**. The default VM uses 4 GiB of memory, one virtual CPU, and a dynamically growing 60 GiB disk. Your computer needs room for the VM, captures, and exported ZIP files.
+The intended host is **64-bit Windows with VirtualBox 7.1 or newer**. New builds default to 4 GiB of memory, one virtual CPU, and a dynamically growing 10 GiB disk. The OS and applications use part of that space. For larger captures, [choose a larger disk during setup](docs/appliance.md#choose-disk-capacity). Your computer needs room for the VM, captures, and exported ZIP files. Older appliance downloads retain their original disk capacity.
 
 These instructions apply when a release provides an OVA, `SHA256SUMS`, and `Setup-tzMCP.ps1`. Do not assume an arbitrary OVA is an official release.
 
@@ -62,7 +62,7 @@ The filename above is an example; use the filename supplied with the release. A 
 ### Import and start
 
 1. Replace `PASTE_THE_PUBLISHED_SHA256_HERE` below with the matching checksum, then run the command.
-2. In the VM desktop, open **tzMCP Capture**.
+2. Wait for **tzMCP Capture** to open in the VM. You can reopen it from the application menu after closing it.
 
 ```powershell
 .\Setup-tzMCP.ps1 -OvaPath .\tzMCP-appliance.ova -ExpectedSha256 'PASTE_THE_PUBLISHED_SHA256_HERE'

@@ -10,13 +10,10 @@ param(
     [string]$ExportPath = (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "tzMCP Exports"),
     [ValidateRange(1, 32)] [int]$Cpu = 1,
     [ValidateRange(1024, 65536)] [int]$MemoryMb = 4096,
-    [ValidateRange(10240, 1048576)] [int]$DiskSizeMb = 61440
+    [ValidateRange(10240, 1048576)] [int]$DiskSizeMb = 10240
 )
 
 $ErrorActionPreference = "Stop"
-if ($DiskSizeMb -lt 61440) {
-    throw "The appliance disk cannot be shrunk below its 61440 MB image size."
-}
 
 function Get-VBoxManage {
     $command = Get-Command VBoxManage.exe -ErrorAction SilentlyContinue
@@ -87,13 +84,17 @@ if ($PSCmdlet.ShouldProcess($VmName, "Import and configure VirtualBox appliance"
             $Matches[1] -ne '00000000-0000-0000-0000-000000000000') { $Matches[1] }
     })
     if ($diskIds.Count -ne 1) { throw "Expected exactly one imported appliance disk." }
-    if ($DiskSizeMb -gt 61440) {
+    # VirtualBox rejects shrinking if an older, larger OVA is supplied.
+    # The default leaves such disks at their original capacity.
+    if ($DiskSizeMb -gt 10240) {
         Invoke-VBoxManage $vbox @("modifymedium", "disk", $diskIds[0], "--resize", "$DiskSizeMb")
     }
     Invoke-VBoxManage $vbox @("modifyvm", $VmName, "--cpus", "$Cpu", "--memory", "$MemoryMb",
         "--nic1", "nat", "--nic2", "none", "--clipboard-mode", "disabled",
         "--drag-and-drop", "disabled", "--usb", "off", "--vram", "128",
-        "--graphicscontroller", "vboxsvga", "--vrde", "off")
+        "--graphicscontroller", "vboxsvga", "--vrde", "off",
+        "--audio-driver", "default", "--audio-controller", "hda",
+        "--audio-enabled", "on", "--audio-out", "on", "--audio-in", "off")
     Invoke-VBoxManage $vbox @("sharedfolder", "add", $VmName, "--name", "tzmcp-export",
         "--hostpath", (Resolve-Path -LiteralPath $ExportPath).Path)
     $verifiedInfo = @(Invoke-VBoxManage $vbox @("showvminfo", $VmName, "--machinereadable"))

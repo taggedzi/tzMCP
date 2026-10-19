@@ -1,6 +1,14 @@
 #!/bin/sh
 set -eu
 
+stop_optional_unit() {
+    # Missing server services are expected; a present service failing to stop
+    # must still fail finalization so it cannot recreate scrubbed logs.
+    if [ "$(systemctl show "$1" --property=LoadState --value)" != not-found ]; then
+        systemctl stop "$1"
+    fi
+}
+
 # This runs asynchronously after Packer's last SSH command has returned so the
 # account used by Packer can be deleted without interrupting the provisioner.
 if id tzmcp-build >/dev/null 2>&1; then
@@ -27,12 +35,14 @@ rm -rf /var/lib/cloud /var/log/installer
 rm -f /var/log/cloud-init.log /var/log/cloud-init-output.log
 
 # Prevent shutdown or socket activation from recreating scrubbed build state.
-systemctl stop rsyslog.service
+stop_optional_unit rsyslog.service
 systemctl stop syslog.socket 2>/dev/null || true
 systemctl stop systemd-update-utmp.service systemd-random-seed.service
 # agetty records its exit in wtmp; stop it before clearing the accounting file.
 systemctl stop getty@tty1.service
-systemctl stop sysstat.service sysstat-collect.timer sysstat-summary.timer
+for unit in sysstat.service sysstat-collect.timer sysstat-summary.timer; do
+    stop_optional_unit "$unit"
+done
 # Shutdown can start the runlevel writer again. Runtime masks disappear on
 # the appliance's first boot, restoring its normal accounting services.
 systemctl mask --runtime getty@tty1.service systemd-update-utmp.service systemd-update-utmp-runlevel.service

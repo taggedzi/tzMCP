@@ -15,7 +15,7 @@ source "virtualbox-iso" "tzmcp" {
   guest_os_type    = "Ubuntu_64"
   cpus             = 1
   memory           = 4096
-  disk_size        = 61440
+  disk_size        = 10240
   headless         = false
   http_content = {
     "/user-data" = templatefile(abspath("${path.root}/ubuntu/http/user-data"), {
