@@ -7,6 +7,7 @@ import tomllib
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yaml
 
 
 ROOT = Path(__file__).parents[2]
@@ -34,6 +35,9 @@ def test_desktop_provisioning_configures_lightdm_for_tzmcp():
     assert "systemctl enable lightdm" in script
     assert "/tmp/tzmcp-display-mode" in script
     assert "/etc/xdg/autostart/tzmcp-display-mode.desktop" in script
+    assert "install -D -m 644 /tmp/tzmcp.desktop /etc/xdg/autostart/tzmcp.desktop" in script
+    assert "Requires=tzmcp-first-boot.service" in script
+    assert "After=tzmcp-first-boot.service" in script
 
 
 def test_display_mode_autostarts_and_applies_a_known_xrandr_mode():
@@ -54,6 +58,18 @@ def test_base_provisioning_installs_display_server_and_greeter():
     assert "python3-tk" in script
     assert "virtualbox-guest-utils" in script
     assert "virtualbox-guest-x11" in script
+    for package in ("ristretto", "tumbler", "parole", "mousepad", "pulseaudio", "pavucontrol",
+                    "gstreamer1.0-pulseaudio", "fonts-dejavu-core", "fonts-noto-core",
+                    "gnupg", "procps", "unattended-upgrades"):
+        assert package in script.split()
+    assert "python3-pip" not in script.split()
+
+
+def test_autoinstall_selects_minimized_server_with_direct_storage():
+    data = yaml.safe_load((ROOT / "appliance/packer/ubuntu/http/user-data").read_text(encoding="utf-8"))
+    assert data["autoinstall"]["source"]["id"] == "ubuntu-server-minimal"
+    assert data["autoinstall"]["storage"]["layout"]["name"] == "direct"
+    assert data["autoinstall"]["storage"]["swap"]["size"] == 0
 
 
 def test_wheel_declares_direct_runtime_imports():
@@ -89,6 +105,35 @@ def test_packer_emits_a_build_manifest():
     config = (ROOT / "appliance" / "packer" / "tzmcp.pkr.hcl").read_text(encoding="utf-8")
     assert 'post-processor "manifest"' in config
     assert "appliance-manifest.json" in config
+
+
+@pytest.mark.parametrize("load_state,stop_status", [("not-found", 0), ("loaded", 0), ("loaded", 9)])
+def test_finalizer_skips_missing_services_but_fails_if_present_service_cannot_stop(load_state, stop_status):
+    bash = os.environ.get("TZMCP_TEST_BASH")
+    if bash is None and os.name != "nt":
+        bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("Bash is unavailable")
+    script = (ROOT / "appliance/provisioning/finalize-image.sh").read_text(encoding="utf-8")
+    body = script.split("stop_optional_unit() {", 1)[1].split("\n}\n", 1)[0]
+    # No real systemd calls: exercise only the optional-service stop contract.
+    harness = '''set -eu
+systemctl() {
+    if [ "$1" = show ]; then
+        printf '%s\\n' "$TEST_LOAD_STATE"
+    else
+        printf 'STOP:%s\\n' "$2"
+        return "$TEST_STOP_STATUS"
+    fi
+}
+'''
+    result = subprocess.run([bash, "-c", harness + "stop_optional_unit() {" + body
+                             + "\n}\nstop_optional_unit rsyslog.service"],
+                            env=dict(os.environ, TEST_LOAD_STATE=load_state,
+                                     TEST_STOP_STATUS=str(stop_status)),
+                            capture_output=True, text=True)
+    assert result.returncode == stop_status, result.stdout + result.stderr
+    assert ("STOP:rsyslog.service" in result.stdout) is (load_state != "not-found")
 
 
 @pytest.mark.parametrize("error_number", [errno.ENOSPC, errno.EIO])

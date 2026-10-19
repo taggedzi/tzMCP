@@ -8,6 +8,27 @@ Build locally on the controlled maintainer machine. A successful build is a
 candidate; publication still requires the transition plan's acceptance matrix.
 Generated images, credentials, and audit output must remain outside Git.
 
+New builds use a 10 GiB virtual disk and Ubuntu Server's minimized installation
+source (`ubuntu-server-minimal`). Keep the pinned ISO's source ID checked against
+`casper/install-sources.yaml` when changing ISOs. The desktop remains Xfce,
+installed without recommended extras; Ristretto, Parole, and Mousepad provide
+local image, audio/video, and text inspection. Tumbler supplies image thumbnails
+without a first-run missing-service warning. The standalone system pip is
+omitted; the application's venv provides its own pip. Fonts, audio/volume
+controls, guest integration, and unattended updates are explicitly installed
+rather than relying on the full server installation. tzMCP starts at desktop
+login, with the ordinary desktop still available.
+Disk swap is disabled so the installer does not reserve several GiB of the
+small base disk. Keep the 4 GiB RAM default and check memory use during acceptance.
+
+This recipe needs a new build; existing release candidates are unchanged.
+Acceptance must confirm installation fits in 10 GiB with useful free space,
+automatic GUI startup after first boot and reboot, image/text/media inspection
+(including audible playback), capture/export, and a 20 GiB setup import whose
+guest root filesystem expands. Record actual used/free space and OVA size;
+package changes alone do not establish a smaller download. Check that APT's
+unattended upgrade service/timers and Firefox update origin remain enabled.
+
 ## Build the guest
 
 Build a wheel from the repository's venv and retain its SHA-256. Use Packer
@@ -36,7 +57,9 @@ records after that step. Offline sanitation is therefore required.
 
 Use Linux or Ubuntu WSL with `qemu-utils`, `e2fsprogs`, and `zerofree` installed.
 Allow twice the virtual disk size plus 10 GiB on the Linux temporary drive
-(130 GiB for the default disk). Check the underlying Windows drive too when
+(30 GiB for the new 10 GiB disk; 130 GiB for older 60 GiB images). This is
+sanitation scratch space, in addition to the ISO and build/output bundles.
+Check the underlying Windows drive too when
 using WSL. Keep large temporary images off a nearly full repository drive.
 
 With Linux paths, run:

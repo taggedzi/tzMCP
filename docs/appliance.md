@@ -15,6 +15,10 @@ appliance on a 64-bit Windows host with VirtualBox 7.1 or newer.
 > The compact candidate has not been tested on that second PC or published as a
 > production release.
 
+The build recipe now targets a 10 GiB minimized Ubuntu appliance with automatic
+tzMCP startup and local preview tools. The existing candidates above predate
+these changes; the new recipe still needs a fresh build and manual acceptance.
+
 ## Install
 
 Windows PowerShell 5.1 and PowerShell 7 are supported. Setup finds VirtualBox
@@ -34,22 +38,47 @@ host directory before import with `-ExportPath` if required. The setup script
 uses the fixed guest share name `tzmcp-export`, disables automount, and does
 not change the host browser, Windows proxy settings, or the host trust store.
 Use `-VmBaseFolder <directory>` to choose where the VM disk is stored.
-Use `-DiskSizeMb 73728` to expand the default 60 GiB disk to 72 GiB before
-first boot. Setup imports a dynamic VDI; Ubuntu grows its root partition and
-filesystem automatically. Shrinking below the image's 60 GiB size is rejected.
 The VM defaults to one virtual CPU; this avoids guest CPU stalls observed with
 two CPUs on the development host. `-Cpu` can be raised on a host where the
 appliance has been verified to boot and capture reliably.
 
+### Choose disk capacity
+
+New builds have a **10 GiB total disk**, including Ubuntu, Firefox, and tzMCP.
+The disk grows on the host as data is written, up to that capacity. Captures,
+browser data, updates, and the temporary export ZIP must all fit in the guest;
+exporting also leaves the local session and archive in place. Choose more space
+for large media sessions.
+
+To import with **20 GiB**, add `-DiskSizeMb 20480` to the setup command:
+
+```powershell
+.\Setup-tzMCP.ps1 -OvaPath .\tzMCP-appliance.ova `
+  -ExpectedSha256 <published-ova-sha256> -DiskSizeMb 20480
+```
+
+The parameter uses MiB: 10 GiB = 10240, 20 GiB = 20480, 40 GiB = 40960.
+Setup converts the disk to dynamic VDI and expands it **before first boot**.
+Ubuntu grows the root partition and filesystem automatically at startup; no
+partition editor is needed. Check the guest's free space in the file manager
+after boot. The host still needs enough physical free space as the VM grows.
+
+Setup imports a new VM; it is not an expansion tool for an already imported VM.
+Existing VMs and older 60 GiB images are not shrunk by this change. Use the
+default when importing an older image, or request a size at least as large as
+that image. VirtualBox rejects attempts to shrink a disk.
+
 ## Capture a session
 
-1. Start the VM and open **tzMCP Capture** from the guest desktop.
+1. Start the VM; **tzMCP Capture** opens automatically. If closed, reopen it
+   from the application menu.
 2. Open **Capture Rules**, select the media types you want to save (such as
    **Image** or **Video**), and select **Save Configuration**. No MIME groups
    are enabled by default, so choose at least one before capturing.
 3. Return to **Capture Session** and select **Start proxy**.
 4. Select **Launch Firefox**. Firefox uses a new temporary profile and the
    appliance’s private loopback proxy.
+   If Firefox shows its first-run welcome screen, select **Continue**.
 5. Browse only the material appropriate for interception. HTTPS traffic is
    decrypted inside the VM; never enter passwords, payment details, recovery
    codes, or other sensitive credentials during capture.
@@ -57,6 +86,18 @@ appliance has been verified to boot and capture reliably.
 
 Capture rules can be edited while no session is running. The effective rules
 are copied into the session and cannot change during capture.
+
+### Inspect files inside the VM
+
+The desktop remains available alongside tzMCP. Use **Thunar** (file manager)
+to open captures under `/var/lib/tzmcp/sessions/<session-id>/capture`.
+Use **Ristretto** for images, **Parole** for audio/video, and **Mousepad** for
+text. Right-click a file and choose **Open With** if needed. Some media formats
+or incomplete streaming segments may not play. Audio playback is enabled;
+microphone input is disabled. Volume controls and the terminal remain available
+for adjustment and troubleshooting.
+If a preview is quiet, raise the guest volume using the speaker icon and check
+the player's own volume control. The guest and host have separate volume levels.
 
 ## Export
 

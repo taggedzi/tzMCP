@@ -2,6 +2,8 @@
 autoinstall:
   version: 1
   interactive-sections: []
+  source:
+    id: ubuntu-server-minimal
   locale: en_US.UTF-8
   keyboard:
     layout: us
@@ -16,6 +18,8 @@ autoinstall:
   storage:
     layout:
       name: direct
+    swap:
+      size: 0
   updates: all
   late-commands:
     - curtin in-target --target=/target -- systemctl enable ssh

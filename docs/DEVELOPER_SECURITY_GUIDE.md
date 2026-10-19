@@ -463,7 +463,7 @@ flowchart LR
 
 Keep generated images, temporary credentials, private keys, and audit output outside Git. Provisioning removes build accounts and identity material, but online cleanup alone has previously left deleted account residue. Offline sanitation and independent verification are required before packaging. A successful build, a checksum, and a passing unit suite are separate from production acceptance.
 
-The Windows setup wrapper defaults to one CPU, 4,096 MiB RAM, and a 61,440 MiB disk. It supports `-VmBaseFolder`, `-ExportPath`, `-Cpu`, `-MemoryMb`, and disk expansion with `-DiskSizeMb`; shrinking below the base disk is rejected. Check [the appliance guide](appliance.md) for CPU compatibility notes and recovery/export procedures.
+New appliance builds and the Windows setup wrapper default to one CPU, 4,096 MiB RAM, and a 10,240 MiB (10 GiB) disk. It supports `-VmBaseFolder`, `-ExportPath`, `-Cpu`, `-MemoryMb`, and disk expansion before first boot with `-DiskSizeMb`. Older images retain their original capacity; VirtualBox rejects shrinking. Check [the appliance guide](appliance.md#choose-disk-capacity) for expansion instructions, CPU compatibility notes, and recovery/export procedures.
 
 Users update the application by importing a newer appliance according to release notes. Ubuntu security updates and Mozilla Firefox APT updates continue independently; exported component versions help explain differences between sessions. Preserve needed exports before replacing any VM.
 

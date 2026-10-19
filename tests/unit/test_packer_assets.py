@@ -11,7 +11,7 @@ def test_packer_builder_contains_appliance_security_defaults():
     assert "ubuntu-24.04.4-live-server-amd64.iso" in variables
     assert re.search(r"(?m)^[ \t]*cpus[ \t]*=[ \t]*1[ \t]*$", config)
     assert re.search(r"(?m)^[ \t]*memory[ \t]*=[ \t]*4096[ \t]*$", config)
-    assert re.search(r"(?m)^[ \t]*disk_size[ \t]*=[ \t]*61440[ \t]*$", config)
+    assert re.search(r"(?m)^[ \t]*disk_size[ \t]*=[ \t]*10240[ \t]*$", config)
     assert '"--clipboard-mode", "disabled"' in config
     assert '"--drag-and-drop", "disabled"' in config
     assert '"--usb", "off"' in config

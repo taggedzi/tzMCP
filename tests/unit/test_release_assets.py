@@ -63,7 +63,9 @@ if ($actual -isnot [string] -or $actual -ne $expected) {{ throw "Truncated insta
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("size,bad_nic", [(61440, False), (73728, False), (51200, False), (61440, True)])
+@pytest.mark.parametrize("size,bad_nic", [
+    (None, False), (10240, False), (20480, False), (5120, False), (10240, True),
+])
 def test_setup_disk_override_resizes_before_boot_and_rejects_shrinking(tmp_path, size, bad_nic):
     powershell = os.environ.get("TZMCP_TEST_POWERSHELL") or shutil.which("pwsh")
     if powershell is None:
@@ -94,6 +96,7 @@ exit 0
     def literal(path):
         return "'" + str(path).replace("'", "''") + "'"
 
+    size_argument = "" if size is None else f"-DiskSizeMb {size}"
     command = f'''
 function Get-Command {{
     [CmdletBinding()] param([string]$Name)
@@ -101,7 +104,7 @@ function Get-Command {{
     else {{ Microsoft.PowerShell.Core\\Get-Command $Name }}
 }}
 try {{
-    & {literal(ROOT / 'scripts/windows/Setup-tzMCP.ps1')} -OvaPath {literal(ova)} -ExpectedSha256 (Get-FileHash {literal(ova)}).Hash -VmName 'test-only' -ExportPath {literal(tmp_path / 'exports')} -VmBaseFolder {literal(tmp_path / 'VM storage')} -DiskSizeMb {size} | Out-Null
+    & {literal(ROOT / 'scripts/windows/Setup-tzMCP.ps1')} -OvaPath {literal(ova)} -ExpectedSha256 (Get-FileHash {literal(ova)}).Hash -VmName 'test-only' -ExportPath {literal(tmp_path / 'exports')} -VmBaseFolder {literal(tmp_path / 'VM storage')} {size_argument} | Out-Null
     'ok'
 }} catch {{ $_.Exception.Message; exit 7 }}
 '''
@@ -110,9 +113,9 @@ try {{
                                      TZMCP_TEST_EXPORT=str(tmp_path / "exports"),
                                      TZMCP_TEST_BAD_NIC="1" if bad_nic else "0"),
                             capture_output=True, text=True)
-    if size < 61440:
+    if size is not None and size < 10240:
         assert result.returncode == 7
-        assert "cannot be shrunk" in result.stdout
+        assert "10240" in result.stdout
         assert not log.exists()
         return
     calls = [json.loads(line) for line in log.read_text(encoding="utf-8-sig").splitlines()]
@@ -126,11 +129,14 @@ try {{
     assert imported[imported.index("--options") + 1] == "importtovdi"
     assert imported[imported.index("--basefolder") + 1] == str(tmp_path / "VM storage")
     resized = [call for call in calls if call[0] == "modifymedium"]
-    if size > 61440:
+    if size is not None and size > 10240:
         assert resized == [["modifymedium", "disk", disk_id, "--resize", str(size)]]
         assert calls.index(resized[0]) < next(i for i, call in enumerate(calls) if call[0] == "startvm")
     else:
         assert resized == []
+    configured = next(call for call in calls if call[0] == "modifyvm")
+    for option, value in (("--audio-enabled", "on"), ("--audio-out", "on"), ("--audio-in", "off")):
+        assert configured[configured.index(option) + 1] == value
 
 
 def test_checksum_validator_rejects_unsafe_manifest_paths():

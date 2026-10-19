@@ -3,12 +3,17 @@ set -eu
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
+# Keep Xfce's file manager, settings, panel, and terminal for inspection and
+# troubleshooting. Avoid full desktop/server bundles and recommended extras.
 apt-get install -y --no-install-recommends \
     xfce4 xfce4-terminal lightdm lightdm-gtk-greeter \
     xserver-xorg-core xserver-xorg-input-libinput xserver-xorg-video-vmware \
+    dbus-x11 x11-xserver-utils fonts-dejavu-core fonts-noto-core \
+    ristretto tumbler parole mousepad pulseaudio pavucontrol gstreamer1.0-pulseaudio \
     libnss3-tools python3.12-venv python3-tk \
     virtualbox-guest-utils virtualbox-guest-x11 \
-    python3-pip ca-certificates curl sudo util-linux cloud-guest-utils
+    ca-certificates curl gnupg sudo procps util-linux cloud-guest-utils \
+    unattended-upgrades
 systemctl set-default graphical.target
 systemctl enable lightdm
 echo "/usr/sbin/lightdm" > /etc/X11/default-display-manager
