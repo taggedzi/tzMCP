@@ -14,7 +14,7 @@ classifiers = [ "Programming Language :: Python :: 3", "Programming Language :: 
 dependencies = [
     "filetype==1.2.0",
     "mitmproxy==12.2.2",
-    "Pillow==12.3.0",
+    "Pillow==13.0.0",
     "psutil==7.0.0",
     "PyYAML==6.0.2",
     "requests==2.33.0",
