@@ -5,7 +5,7 @@ asgiref==3.11.0
 attrs==26.1.0
 bcrypt==5.0.0
 blinker==1.9.0
-Brotli==1.2.0
+Brotli==1.2.1
 certifi==2026.7.22
 cffi==2.1.0
 charset-normalizer==3.4.9
