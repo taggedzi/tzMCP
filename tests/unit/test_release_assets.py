@@ -63,10 +63,12 @@ if ($actual -isnot [string] -or $actual -ne $expected) {{ throw "Truncated insta
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize("size,bad_nic", [
-    (None, False), (10240, False), (20480, False), (5120, False), (10240, True),
+@pytest.mark.parametrize("image_size,size,bad_nic", [
+    (10240, None, False), (10240, 10240, False), (10240, 20480, False),
+    (10240, 5120, False), (10240, 10240, True),
+    (61440, None, False), (61440, 73728, False), (61440, 20480, False),
 ])
-def test_setup_disk_override_resizes_before_boot_and_rejects_shrinking(tmp_path, size, bad_nic):
+def test_setup_disk_override_resizes_before_boot_and_rejects_shrinking(tmp_path, image_size, size, bad_nic):
     powershell = os.environ.get("TZMCP_TEST_POWERSHELL") or shutil.which("pwsh")
     if powershell is None:
         pytest.skip("PowerShell is unavailable")
@@ -79,6 +81,12 @@ def test_setup_disk_override_resizes_before_boot_and_rejects_shrinking(tmp_path,
 ConvertTo-Json -InputObject @($args) -Compress | Add-Content -LiteralPath $env:TZMCP_TEST_VBOX_LOG
 switch ($args[0]) {{
     '--version' {{ '7.2.18' }}
+    'modifymedium' {{
+        if ([int]$args[4] -lt [int]$env:TZMCP_TEST_IMAGE_SIZE) {{
+            [Console]::Error.WriteLine('Shrinking is not supported')
+            exit 17
+        }}
+    }}
     'showvminfo' {{
         '"IDE-ImageUUID-0-0"="{disk_id}"'
         'cpus=1'; 'memory=4096'
@@ -111,6 +119,7 @@ try {{
     result = subprocess.run([powershell, "-NoProfile", "-NonInteractive", "-Command", command],
                             env=dict(os.environ, TZMCP_TEST_VBOX_LOG=str(log),
                                      TZMCP_TEST_EXPORT=str(tmp_path / "exports"),
+                                     TZMCP_TEST_IMAGE_SIZE=str(image_size),
                                      TZMCP_TEST_BAD_NIC="1" if bad_nic else "0"),
                             capture_output=True, text=True)
     if size is not None and size < 10240:
@@ -119,6 +128,15 @@ try {{
         assert not log.exists()
         return
     calls = [json.loads(line) for line in log.read_text(encoding="utf-8-sig").splitlines()]
+    if size is not None and 10240 < size < image_size:
+        assert result.returncode == 7
+        assert "VBoxManage failed with exit code 17" in result.stdout
+        assert "Shrinking is not supported" in result.stderr
+        assert [call for call in calls if call[0] == "modifymedium"] == [
+            ["modifymedium", "disk", disk_id, "--resize", str(size)],
+        ]
+        assert not any(call[0] in ("modifyvm", "startvm") for call in calls)
+        return
     if bad_nic:
         assert result.returncode == 7
         assert "VM verification failed before startup" in result.stdout

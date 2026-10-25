@@ -8,16 +8,15 @@ This guide describes the supported end-user workflow for a published tzMCP
 appliance on a 64-bit Windows host with VirtualBox 7.1 or newer.
 
 > **Development status:** No production OVA is included in this repository.
-> A compact local candidate is available in `dist/appliance-compact-20261018/`
-> on the maintainer machine. It passed sanitization, disk audit, import, and
-> HTTPS image capture/export on the development host. The earlier candidate in
-> `dist/release-20261017k/` also passed reboot checks on a second Windows 11 PC.
-> The compact candidate has not been tested on that second PC or published as a
-> production release.
+> The current 10 GiB candidate is recorded in the [acceptance checkpoint](appliance-checkpoint.md),
+> including its checksum and completed sanitation, capture/export, reboot, and
+> expanded-disk checks. Second Windows PC acceptance and human confirmation of
+> audible playback remain pending. The initialization-failure recovery check
+> added in this review is also pending; see the [build guide](appliance-build.md#initialization-failure-and-recovery-acceptance).
 
 The build recipe now targets a 10 GiB minimized Ubuntu appliance with automatic
-tzMCP startup and local preview tools. The existing candidates above predate
-these changes; the new recipe still needs a fresh build and manual acceptance.
+tzMCP startup and local preview tools. See the checkpoint for the built candidate
+and the build guide for acceptance procedures.
 
 ## Install
 
@@ -134,6 +133,29 @@ cache, local storage, mitmproxy CA private key, unrelated sessions, or absolute
 guest paths.
 
 ## Recovery and persistence
+
+### Desktop does not start
+
+LightDM waits for `tzmcp-first-boot.service` on every boot. A storage-growth or
+CA-initialization failure deliberately blocks the desktop. Do not remove that
+dependency or delete the CA to bypass the failure.
+
+Use VirtualBox's **Input > Keyboard > Soft Keyboard** to send Ctrl+Alt+F1 to
+the guest console. The `tzmcp` account logs in automatically. Inspect the
+service result and available space:
+
+```sh
+systemctl status tzmcp-first-boot.service lightdm.service --no-pager
+df -h /
+```
+
+The account cannot run general sudo commands or read all system logs. For
+administrator diagnosis, preserve the powered-off VM with a snapshot or clone,
+then use the [maintenance boot procedure](appliance-build.md#maintenance-boot-for-recovery).
+After correcting the reported cause, reboot normally to retry initialization
+and desktop startup. Preserve captures and the existing CA during recovery.
+
+### Interrupted captures
 
 If the GUI or VM stops unexpectedly, reopen tzMCP. It will preserve captured
 files, recover the active session as `INTERRUPTED`, and offer it for export
