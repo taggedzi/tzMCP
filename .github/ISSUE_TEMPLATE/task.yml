@@ -1,0 +1,44 @@
+name: Maintenance or documentation task
+description: Track a focused refactor, dependency update, CI change, or documentation improvement.
+title: "[Task] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Use the bug or feature form for user-facing behavior changes.
+        Do not include secrets, private traffic, or sensitive vulnerability details.
+        See the [security guidance](https://github.com/taggedzi/tzMCP/blob/main/CONTRIBUTING.md#security-findings) for sensitive findings.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Task category
+      options:
+        - Documentation
+        - Tests or refactoring
+        - Dependencies or packaging
+        - CI or release tooling
+        - Appliance maintenance
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Problem and goal
+      description: What needs improvement, and why? For documentation, link the affected page or section.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Identify affected files or components, related issues, and any compatibility or security constraints. List exclusions when useful.
+    validations:
+      required: true
+  - type: textarea
+    id: completion
+    attributes:
+      label: Completion and validation
+      description: List observable acceptance criteria and how to verify them (tests, build checks, or documentation review).
+    validations:
+      required: true

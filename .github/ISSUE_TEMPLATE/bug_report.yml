@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible problem with capture, sessions, exports, or setup.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues before reporting a bug.
+        Use synthetic or public test data you have permission to capture.
+        Remove credentials, cookies, private URLs, personal paths, and browsing details from logs and screenshots. Do not attach capture archives, browser profiles, or CA private keys.
+        For sensitive vulnerabilities, follow the [security guidance](https://github.com/taggedzi/tzMCP/blob/main/CONTRIBUTING.md#security-findings) before posting exploit details publicly.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: What did you expect, and what happened instead? Include any effect on saved files or session recovery.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: tzMCP version or commit
+      description: Include the appliance filename/build identifier when applicable. Say unknown if you cannot find it.
+    validations:
+      required: true
+  - type: dropdown
+    id: run-mode
+    attributes:
+      label: How are you running tzMCP?
+      options:
+        - VirtualBox appliance
+        - Native GUI (development)
+        - Native CLI (development)
+        - Other / unsure
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS/version and browser/version; for native installs, Python version and installation method; for the appliance, host OS and VirtualBox version. Include guest details if known.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give the smallest reproduction, relevant capture rules or sanitized CLI arguments, and whether it happens every time. Use example.com or synthetic inputs where possible.
+      placeholder: |
+        1. Configure...
+        2. Start...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics (optional)
+      description: Paste a short relevant Activity message or traceback. Review any screenshots for private data before attaching them.
+      render: text
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround or regression details (optional)
+      description: Include a known working version, related issue, or workaround you have tested.
