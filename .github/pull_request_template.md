@@ -14,7 +14,7 @@ For docs-only changes, describe link/content checks. State checks not run and wh
 
 <!-- Note intentional changes to CLI flags, YAML keys, GUI behavior, saved files, exports, or logs.
 Describe effects on untrusted input handling, safety limits, or data retention, plus known limitations.
-Write "None" if there are none. Do not publish sensitive exploit details; follow CONTRIBUTING.md. -->
+Write "None" if there are none. Do not publish sensitive exploit details; follow SECURITY.md. -->
 
 ## Review checklist
 

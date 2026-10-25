@@ -8,7 +8,7 @@ body:
         Search existing issues before reporting a bug.
         Use synthetic or public test data you have permission to capture.
         Remove credentials, cookies, private URLs, personal paths, and browsing details from logs and screenshots. Do not attach capture archives, browser profiles, or CA private keys.
-        For sensitive vulnerabilities, follow the [security guidance](https://github.com/taggedzi/tzMCP/blob/main/CONTRIBUTING.md#security-findings) before posting exploit details publicly.
+        For sensitive vulnerabilities, follow the [security policy](https://github.com/taggedzi/tzMCP/blob/main/SECURITY.md) before posting exploit details publicly.
   - type: textarea
     id: behavior
     attributes:
