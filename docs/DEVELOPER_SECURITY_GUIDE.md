@@ -39,6 +39,24 @@ python3 -m venv venv
 
 Tkinter may need to be supplied by the operating system's Python installation. `requirements.txt` is a pinned environment snapshot that includes Windows-specific dependencies; do not assume that installing the entire snapshot works unchanged on Linux/macOS. `pyproject.toml` declares the package's direct runtime dependencies and development extras. Do not loosen pins or add undeclared runtime dependencies as an incidental change.
 
+### Dependency security status (2026-10-25)
+
+GitHub reported 102 open Dependabot alerts: 82 for Pillow across the two
+manifests and 20 for Brotli, certifi, cryptography, h2, msgpack, pyOpenSSL,
+and Tornado. The dependency updates address 101 of those alerts. The package
+metadata also sets security minimums for affected transitive proxy dependencies,
+so installing the wheel does not rely on the Windows requirements snapshot.
+
+**One critical alert remains unresolved:** [Brotli alert #160](https://github.com/taggedzi/tzMCP/security/dependabot/160)
+requires Brotli 1.2.1, but mitmproxy 12.3.0 declares `Brotli<=1.2.0`.
+The snapshot retains 1.2.0 until an upstream release supports the fix. Do not
+force the incompatible upgrade with `--no-deps` or dismiss the alert. Untrusted
+Brotli-compressed responses remain a known risk; avoid capture sessions until
+this dependency conflict is resolved. Recheck mitmproxy's published dependency
+metadata, update both manifests, then rerun dependency resolution, `pip check`,
+and the complete test suite. GitHub alerts close only after fixes reach the
+default branch and GitHub processes the dependency manifests.
+
 ### Verify the installation
 
 ```powershell
