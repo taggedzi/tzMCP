@@ -7,7 +7,7 @@ body:
       value: |
         Search existing issues first. Use the bug or feature form for user-facing behavior changes.
         Do not include secrets, private traffic, or sensitive vulnerability details.
-        See the [security guidance](https://github.com/taggedzi/tzMCP/blob/main/CONTRIBUTING.md#security-findings) for sensitive findings.
+        See the [security policy](https://github.com/taggedzi/tzMCP/blob/main/SECURITY.md) for sensitive findings.
   - type: dropdown
     id: category
     attributes:

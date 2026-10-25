@@ -2,6 +2,8 @@
 
 Read [AGENTS.md](AGENTS.md) and the [developer and security guide](docs/DEVELOPER_SECURITY_GUIDE.md) before changing code. The [README](README.md) explains the user workflow.
 
+Follow the [code of conduct](CODE_OF_CONDUCT.md) in project spaces. This is a solo-maintained project with limited availability; responses and review timelines are not guaranteed.
+
 ## Report or plan work
 
 Use the repository's [issue chooser](https://github.com/taggedzi/tzMCP/issues/new/choose) for a bug report, feature request, or maintenance/documentation task. Bug reports should include the version, native/appliance setup, expected and actual behavior, and a minimal reproduction. Feature requests and tasks should include observable completion criteria. Search existing issues first and keep shared examples free of private data. For sensitive vulnerabilities, follow [Security findings](#security-findings).
@@ -31,7 +33,7 @@ In the pull request, explain the problem, resulting behavior, tests run, and any
 
 ## Security findings
 
-Include the affected version, code location, impact, and a minimal reproduction using synthetic data. Never include live credentials, CA private keys, or another person's traffic. For a sensitive vulnerability, contact the maintainer privately through a trusted channel before publishing exploit details; this repository does not define a dedicated private-reporting process.
+Follow the [security policy](SECURITY.md) to report vulnerabilities privately. Include the affected version, code location, impact, and a minimal reproduction using synthetic data. Never include live credentials, CA private keys, or another person's traffic. Security reports and fixes are best effort, with no guaranteed response or resolution timeline.
 
 ## License
 
