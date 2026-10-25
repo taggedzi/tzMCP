@@ -12,12 +12,19 @@ requires-python = ">=3.12"
 keywords = [ "Media Download Proxy", "Mitmproxy", "HTML", "CSS", "JavaScript", "Images", "Other Media Types", "Download Proxy",]
 classifiers = [ "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.12", "Programming Language :: Python :: 3.13", "Operating System :: OS Independent", "Development Status :: 3 - Alpha", "Environment :: Console", "Environment :: X11 Applications :: tkinter", "Topic :: Utilities",]
 dependencies = [
+    # Security floors for transitive proxy dependencies also apply to wheel installs.
+    "Brotli==1.2.1",
+    "certifi>=2026.10.23",
+    "cryptography>=50.0.2",
     "filetype==1.2.0",
-    "mitmproxy==12.2.2",
-    "Pillow==12.3.0",
+    "h2>=4.4.1",
+    "mitmproxy==12.3.0",
+    "Pillow==13.0.0",
     "psutil==7.0.0",
+    "pyOpenSSL>=26.4.0",
     "PyYAML==6.0.2",
     "requests==2.33.0",
+    "tornado>=6.5.10",
     "watchdog==6.0.0",
 ]
 [[project.authors]]

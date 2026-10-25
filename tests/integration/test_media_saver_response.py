@@ -1,6 +1,10 @@
 import errno
 
+import brotli
 import pytest
+from mitmproxy import http
+from mitmproxy.net import encoding
+from packaging.version import Version
 
 from tzMCP.gui_bits.config_manager import Config, ConfigManager
 from tzMCP.proxy_runtime import write_config_snapshot
@@ -37,6 +41,44 @@ def test_allowed_image_is_saved(saver, make_flow, make_png):
     flow = make_flow("http://site.com/pic.png", make_png(500, 500))
     saver.response(flow)
     assert len(_saved_files(saver)) == 1
+
+
+def test_patched_brotli_decoder_is_loaded():
+    assert Version(brotli.__version__) >= Version("1.2.1")
+
+
+@pytest.mark.parametrize(
+    "content", [b"", b"hello world", bytes(range(256)) * 256],
+    ids=["empty", "text", "binary"],
+)
+def test_brotli_response_decodes_and_reencodes(content):
+    compressed = brotli.compress(content)
+    response = http.Response.make(200, compressed)
+    response.headers["Content-Encoding"] = "br"
+    assert response.content == content
+    response.content = content + b"updated"
+    assert brotli.decompress(response.raw_content) == content + b"updated"
+    assert encoding.decode_brotli(encoding.encode_brotli(content)) == content
+
+
+def test_brotli_chunked_image_is_saved_decoded(saver, make_flow, make_png):
+    content = make_png(500, 500)
+    flow = make_flow("http://site.com/pic.png", b"")
+    flow.response = http.Response.make(200, brotli.compress(content))
+    flow.response.headers["Content-Encoding"] = "br"
+    # Chunked responses do not carry the compressed body's Content-Length.
+    del flow.response.headers["Content-Length"]
+    flow.response.headers["Transfer-Encoding"] = "chunked"
+    saver.response(flow)
+    assert [path.read_bytes() for path in _saved_files(saver)] == [content]
+
+
+def test_truncated_brotli_response_is_rejected():
+    compressed = brotli.compress(b"hello world" * 100)
+    response = http.Response.make(200, compressed[:-1])
+    response.headers["Content-Encoding"] = "br"
+    with pytest.raises(ValueError):
+        _ = response.content
 
 
 def test_disallowed_mime_is_skipped(saver, make_flow, make_png):
