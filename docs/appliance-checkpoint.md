@@ -49,5 +49,10 @@ did not repeat that capture or revalidate the original archive bytes.
 
 Before publishing a production release, test this exact candidate on the second
 Windows PC and have a person confirm audible playback. Keep those results tied
-to the checksum above. Merge PR #38 and manually upload the OVA, checksum, and
+to the checksum above. The [initialization-failure and recovery acceptance
+check](appliance-build.md#initialization-failure-and-recovery-acceptance), added
+after the recorded run during PR review, is also pending. It must verify blocked
+desktop startup, console diagnosis, and successful retry with the CA and saved
+sessions preserved; it is not part of the completed evidence above.
+Merge PR #38 and manually upload the OVA, checksum, and
 setup script when release acceptance is complete.

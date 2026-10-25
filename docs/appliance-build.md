@@ -91,3 +91,66 @@ recovery, export, host-boundary, and independent-CA checks in the
 [transition plan](superpowers/plans/2026-07-23-virtualbox-appliance-transition.md).
 Record any unavailable gate explicitly; a development-host import does not
 prove clean-host compatibility.
+
+### Maintenance boot for recovery
+
+Use this only on a preserved VM or a disposable acceptance import. The regular
+`tzmcp` account intentionally has no general sudo access; do not broaden its
+sudoers rules for recovery.
+
+1. At VM startup, hold Shift for the BIOS GRUB menu (or press Esc for an EFI
+   guest). Select Ubuntu and press **e**. On the line beginning `linux`, replace
+   the standalone `ro` with `rw` and append `init=/bin/bash`. Boot the edited
+   entry with **Ctrl+X** or **F10**. This is a one-boot root shell, not a persistent
+   boot configuration change.
+2. Ensure the root filesystem is writable and inspect the latest retained logs:
+
+   ```sh
+   mount -o remount,rw /
+   journalctl -u tzmcp-first-boot.service -u lightdm.service -n 100 --no-pager
+   df -h /
+   ```
+
+If the journal has no retained boot, inspect
+`/var/lib/tzmcp/logs/first-boot-ca.log` for CA-generation failures. Correct the
+specific reported cause; do not erase captures, session metadata, or CA files.
+Systemd is not running in this shell, so `systemctl restart` is not available.
+Run `sync` and then `reboot -f` to boot normally. Initialization retries on each
+boot; verify both services are active and tzMCP opens after the repair.
+
+### Initialization-failure and recovery acceptance
+
+**Pending:** this is a manual systemd/desktop check, not covered by the Windows
+unit suite. Use a separate disposable import of the exact candidate checksum;
+never inject failures into a user's working VM or the release image.
+
+1. Complete a normal boot. Record the CA certificate SHA-256 and a known saved
+   session's file hashes, shut down, and take a snapshot. Enter the maintenance
+   shell above and inject a failure before initialization runs:
+
+   ```sh
+   mkdir -p /etc/systemd/system/tzmcp-first-boot.service.d
+   printf '%s\n' '[Service]' 'ExecStartPre=/bin/false' \
+     > /etc/systemd/system/tzmcp-first-boot.service.d/90-acceptance-failure.conf
+   sync
+   reboot -f
+   ```
+
+2. Use the guest console as described in the [user recovery guide](appliance.md#desktop-does-not-start).
+   Record `systemctl status tzmcp-first-boot.service lightdm.service --no-pager`.
+   Confirm initialization failed, LightDM is not active, and no tzMCP GUI opened.
+   Confirm the console remains accessible for diagnosis.
+
+3. Reenter maintenance boot. Confirm the journal identifies the injected
+   `ExecStartPre` failure, then remove only the test override and retry:
+
+   ```sh
+   rm /etc/systemd/system/tzmcp-first-boot.service.d/90-acceptance-failure.conf
+   sync
+   reboot -f
+   ```
+
+4. Require successful initialization, active LightDM, automatic tzMCP startup,
+   and unchanged CA/session hashes. Save the failure and recovery service
+   output with the candidate checksum. Mark this gate complete only after those
+   observations; restore the snapshot or discard the disposable import afterward.
