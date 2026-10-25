@@ -2,6 +2,12 @@
 
 Read [AGENTS.md](AGENTS.md) and the [developer and security guide](docs/DEVELOPER_SECURITY_GUIDE.md) before changing code. The [README](README.md) explains the user workflow.
 
+## Report or plan work
+
+Use the repository's [issue chooser](https://github.com/taggedzi/tzMCP/issues/new/choose) for a bug report, feature request, or maintenance/documentation task. Bug reports should include the version, native/appliance setup, expected and actual behavior, and a minimal reproduction. Feature requests and tasks should include observable completion criteria. Search existing issues first and keep shared examples free of private data. For sensitive vulnerabilities, follow [Security findings](#security-findings).
+
+The [pull request template](.github/pull_request_template.md) prompts for the problem, resulting behavior, validation, and compatibility/security impact. Record exact test commands and outcomes, including any checks not run and why.
+
 ## Prepare a change
 
 1. Set up the repository virtual environment using the [development setup](docs/DEVELOPER_SECURITY_GUIDE.md#development-setup).

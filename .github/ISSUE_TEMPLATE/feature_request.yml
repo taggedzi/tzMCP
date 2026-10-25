@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a new capability or a change to existing behavior.
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. Describe the user problem before the implementation.
+        Keep examples free of credentials, private traffic, and personal data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Who needs this, what are they trying to do, and what gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired workflow. Identify whether this affects the GUI, CLI, capture rules, sessions/exports, or appliance.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Give concrete, observable results that would make this complete.
+      placeholder: |
+        - A user can...
+        - Existing behavior still...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds (optional)
+      description: What have you tried, and why is it insufficient?
+  - type: textarea
+    id: impact
+    attributes:
+      label: Compatibility and security considerations (optional)
+      description: Note effects on CLI flags, YAML keys, file/export layout, logs, data retention, or safety limits. Say unknown where needed.
