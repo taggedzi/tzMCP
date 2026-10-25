@@ -65,6 +65,11 @@ build {
   }
 
   provisioner "file" {
+    source      = abspath("${path.root}/../../security-overrides.txt")
+    destination = "/tmp/tzmcp-security-overrides.txt"
+  }
+
+  provisioner "file" {
     source      = abspath("${path.root}/../files/tzmcp-first-boot.service")
     destination = "/tmp/tzmcp-first-boot.service"
   }

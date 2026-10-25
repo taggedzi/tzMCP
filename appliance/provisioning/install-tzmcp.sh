@@ -8,10 +8,13 @@ if ! id "$ACCOUNT" >/dev/null 2>&1; then
 fi
 python3.12 -m venv /opt/tzmcp/venv
 /opt/tzmcp/venv/bin/pip install --no-cache-dir --upgrade pip
+/opt/tzmcp/venv/bin/pip install --no-cache-dir uv==0.13.5
 wheel_count=$(find /tmp -maxdepth 1 -type f -name '*.whl' | wc -l)
 [ "$wheel_count" -eq 1 ] || { echo "expected exactly one wheel in /tmp" >&2; exit 1; }
 wheel_path=$(find /tmp -maxdepth 1 -type f -name '*.whl' -print -quit)
-/opt/tzmcp/venv/bin/pip install --no-cache-dir "$wheel_path"
+/opt/tzmcp/venv/bin/python -m uv pip install --no-cache \
+    --python /opt/tzmcp/venv/bin/python \
+    --override /tmp/tzmcp-security-overrides.txt "$wheel_path"
 ln -sfn /opt/tzmcp/venv/bin/tzMCP-gui /usr/local/bin/tzmcp-gui
 chown -R root:root /opt/tzmcp
 

@@ -13,6 +13,7 @@ keywords = [ "Media Download Proxy", "Mitmproxy", "HTML", "CSS", "JavaScript", "
 classifiers = [ "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.12", "Programming Language :: Python :: 3.13", "Operating System :: OS Independent", "Development Status :: 3 - Alpha", "Environment :: Console", "Environment :: X11 Applications :: tkinter", "Topic :: Utilities",]
 dependencies = [
     # Security floors for transitive proxy dependencies also apply to wheel installs.
+    "Brotli==1.2.1",
     "certifi>=2026.10.23",
     "cryptography>=50.0.2",
     "filetype==1.2.0",

@@ -22,6 +22,10 @@ def test_packer_transfers_files_before_provisioning_scripts_run():
     assert 'destination = "/tmp/tzmcp-finalize-image"' in config
     assert 'destination = "/tmp/tzmcp-export-helper"' in config
     assert 'destination = "/tmp/tzmcp-first-boot"' in config
+    assert 'destination = "/tmp/tzmcp-security-overrides.txt"' in config
+    assert config.index('destination = "/tmp/tzmcp-security-overrides.txt"') < config.index(
+        'provisioning/install-tzmcp.sh'
+    )
     desktop = (ROOT / "appliance" / "provisioning" / "configure-desktop.sh").read_text(encoding="utf-8")
     helper = (ROOT / "appliance" / "provisioning" / "install-export-helper.sh").read_text(encoding="utf-8")
     assert "/tmp/tzmcp-first-boot" in desktop
@@ -181,7 +185,8 @@ def test_wheel_provisioning_preserves_and_validates_the_wheel_filename():
     script = (ROOT / "appliance" / "provisioning" / "install-tzmcp.sh").read_text(encoding="utf-8")
     assert 'destination = "/tmp/"' in config
     assert "expected exactly one wheel" in script
-    assert "pip install --no-cache-dir \"$wheel_path\"" in script
+    assert "-m uv pip install --no-cache" in script
+    assert '--override /tmp/tzmcp-security-overrides.txt "$wheel_path"' in script
 
 
 def test_first_boot_uses_mitmdump_from_the_installed_venv():

@@ -23,7 +23,8 @@ Create a virtual environment with a compatible Python, then install the editable
 
 ```powershell
 py -3.12 -m venv venv
-.\venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\venv\Scripts\python.exe -m pip install uv==0.13.5
+.\venv\Scripts\python.exe -m uv pip install --python venv/Scripts/python.exe --override security-overrides.txt -e ".[dev]"
 ```
 
 Use the existing repository `venv` when one is already available. Direct executable paths avoid requiring PowerShell activation. An editable install makes changes under `src/` available without reinstalling after every edit.
@@ -34,7 +35,8 @@ From the checkout, using a compatible `python3`:
 
 ```bash
 python3 -m venv venv
-./venv/bin/python -m pip install -e '.[dev]'
+./venv/bin/python -m pip install uv==0.13.5
+./venv/bin/python -m uv pip install --python venv/bin/python --override security-overrides.txt -e '.[dev]'
 ```
 
 Tkinter may need to be supplied by the operating system's Python installation. `requirements.txt` is a pinned environment snapshot that includes Windows-specific dependencies; do not assume that installing the entire snapshot works unchanged on Linux/macOS. `pyproject.toml` declares the package's direct runtime dependencies and development extras. Do not loosen pins or add undeclared runtime dependencies as an incidental change.
@@ -43,19 +45,30 @@ Tkinter may need to be supplied by the operating system's Python installation. `
 
 GitHub reported 102 open Dependabot alerts: 82 for Pillow across the two
 manifests and 20 for Brotli, certifi, cryptography, h2, msgpack, pyOpenSSL,
-and Tornado. The dependency updates address 101 of those alerts. The package
+and Tornado. The dependency updates address all 102 alerts. The package
 metadata also sets security minimums for affected transitive proxy dependencies,
 so installing the wheel does not rely on the Windows requirements snapshot.
 
-**One critical alert remains unresolved:** [Brotli alert #160](https://github.com/taggedzi/tzMCP/security/dependabot/160)
+**Temporary compatibility exception:** [Brotli alert #160](https://github.com/taggedzi/tzMCP/security/dependabot/160)
 requires Brotli 1.2.1, but mitmproxy 12.3.0 declares `Brotli<=1.2.0`.
-The snapshot retains 1.2.0 until an upstream release supports the fix. Do not
-force the incompatible upgrade with `--no-deps` or dismiss the alert. Untrusted
-Brotli-compressed responses remain a known risk; avoid capture sessions until
-this dependency conflict is resolved. Recheck mitmproxy's published dependency
-metadata, update both manifests, then rerun dependency resolution, `pip check`,
-and the complete test suite. GitHub alerts close only after fixes reach the
-default branch and GitHub processes the dependency manifests.
+Isolated testing with 1.2.1 passed the full suite and focused HTTP Brotli
+decode/encode, truncated-input rejection, and decoded-image capture tests.
+Both manifests require the patched decoder. Install with the pinned uv tool
+and `--override security-overrides.txt`, as shown above: it overrides only
+Brotli's requirement and preserves resolution of all other dependencies.
+CI and appliance provisioning use the same override. To install the Windows
+snapshot, pass `-r requirements.txt` instead of `-e ".[dev]"` to that uv command.
+
+Ordinary pip installation of the project will reject this version conflict.
+`pip check` still reports mitmproxy's Brotli upper-bound mismatch; runtime tests
+do not change upstream package metadata. Do not ignore additional dependency
+errors or use a blanket `--no-deps` installation. Remove the override and return
+to standard pip installation when an upstream mitmproxy release permits the
+patched decoder, then rerun resolution, `pip check`, and the full suite.
+Local compatibility checks are on Windows/Python 3.13; require the PR's Linux
+and Python 3.12 checks before merging. No live browser/proxy capture was tested.
+GitHub alerts close only after fixes reach the default branch and GitHub
+processes the dependency manifests.
 
 ### Verify the installation
 

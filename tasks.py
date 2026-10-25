@@ -3,6 +3,7 @@
 import re
 import shutil
 import os
+import sys
 import toml
 from pathlib import Path
 import subprocess
@@ -16,7 +17,11 @@ INIT_PATH = Path("src/tzMCP/__init__.py")
 @task
 def setup(c):
     """Install the project in editable mode with dev dependencies."""
-    c.run("pip install -e .[dev]")
+    subprocess.run([sys.executable, "-m", "pip", "install", "uv==0.13.5"], check=True)
+    subprocess.run([
+        sys.executable, "-m", "uv", "pip", "install", "--python", sys.executable,
+        "--override", "security-overrides.txt", "-e", ".[dev]",
+    ], check=True)
 
 @task
 def test(c):
